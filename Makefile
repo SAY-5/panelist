@@ -21,6 +21,7 @@ run:
 
 demo:
 	$(COMPOSE) up -d --wait postgres localstack
+	DATABASE_URL=$(DEMO_DB) uv run alembic downgrade base
 	DATABASE_URL=$(DEMO_DB) uv run alembic upgrade head
 	DATABASE_URL=$(DEMO_DB) uv run python -m sim.demo
 

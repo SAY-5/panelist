@@ -16,7 +16,10 @@ from sim.world import RATES, RUBRIC, SimExpert, World, build_world, grade_for, w
 
 # Demo tuning: short leases so abandoned claims are visibly reclaimed during the run.
 os.environ.setdefault("LEASE_SECONDS", "3")
-os.environ.setdefault("ATTENTION_FRACTION", "0.1")
+# One in five serves prefers a golden task and two failed checks are enough to pause, so the
+# careless experts trip the guard within a 500-task run.
+os.environ.setdefault("ATTENTION_FRACTION", "0.2")
+os.environ.setdefault("ATTENTION_MIN_CHECKS", "2")
 os.environ.setdefault("DELIVERY_S3_BUCKET", "panelist-deliveries")
 os.environ.setdefault("AWS_ENDPOINT_URL", "http://localhost:4569")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
@@ -94,6 +97,7 @@ class Stats:
         self.claims = 0
         self.empty = 0
         self.paused: list[str] = []
+        self.latencies: list[float] = []
 
     def add(self, **kw) -> None:
         with self.lock:
@@ -146,7 +150,9 @@ def run_expert(e: SimExpert, world: World, stats: Stats, tasks_by_id: dict) -> N
     rng = world.rng.__class__(world.seed ^ hash(e.name) & 0xFFFF)
     with client(e.key) as c:
         while True:
+            started = time.perf_counter()
             r = c.post("/tasks/next")
+            stats.add(latencies=time.perf_counter() - started)
             if r.status_code == 423:
                 e.paused = True
                 stats.add(paused=e.name)
@@ -262,6 +268,12 @@ def main(argv=None) -> int:
     print("PANELIST DEMO SUMMARY")
     print("=" * 72)
     print(f"experts: {len(world.experts)}  tasks: {len(world.tasks)}  seed: {args.seed}")
+    print(
+        f"config: attention fraction {settings.attention_fraction},"
+        f" window {settings.attention_window},"
+        f" min checks {settings.attention_min_checks}, threshold {settings.attention_threshold},"
+        f" lease {settings.lease_seconds}s"
+    )
     print(f"tasks routed by tag ({stats.claims} claims): {by_tag}")
     print(f"tag mismatches: {stats.mismatches}")
     print(
@@ -297,7 +309,12 @@ def main(argv=None) -> int:
         f" sha256 {delivery['checksum']}"
     )
     print(f"delivery location: {delivery['location']}  ({storage})")
-    print(f"grading wall time: {grading_seconds:.1f}s  p50 claim latency: see /metrics histogram")
+    lat = sorted(stats.latencies)
+    p50, p95 = lat[len(lat) // 2], lat[int(len(lat) * 0.95)]
+    print(
+        f"grading wall time: {grading_seconds:.1f}s  claim latency over {len(lat)} claims:"
+        f" p50 {p50 * 1000:.1f}ms  p95 {p95 * 1000:.1f}ms"
+    )
     print("=" * 72)
     server.should_exit = True
     return 0 if stats.mismatches == 0 and stats.double_blocked == stats.double_attempts else 1

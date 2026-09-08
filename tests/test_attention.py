@@ -115,3 +115,21 @@ def test_rolling_window_forgets_old_failures(client, admin_key, settings, db):
         grade(client, key, t["id"], GOLD)
     s = client.get(f"/experts/{expert['id']}/attention", headers=h(admin_key)).json()
     assert s["rolling_window"] == 2 and s["rolling_pass_rate"] == 1.0 and s["checks_total"] == 3
+
+
+def test_attention_task_is_reused_across_experts(client, admin_key, reviewer_key, settings, db):
+    settings.attention_fraction = 1.0
+    rubric = setup_rubric(client, admin_key)
+    (gold_id,) = make_tasks(client, admin_key, rubric, _golden(1))
+    _, a = make_expert(client, admin_key, "A", ["python"])
+    _, b = make_expert(client, admin_key, "B", ["python"])
+    assert claim(client, a)["id"] == gold_id
+    ga = grade(client, a, gold_id, GOLD)
+    assert claim(client, a) is None  # never the same golden task twice for one expert
+    assert claim(client, b)["id"] == gold_id
+    grade(client, b, gold_id, GOLD)
+    review(client, reviewer_key, ga["id"])  # approval pays but leaves the task in the queue
+    t = client.get(f"/tasks/{gold_id}", headers=h(admin_key)).json()
+    assert t["status"] == "queued" and t["grades_received"] == 2
+    _, c = make_expert(client, admin_key, "C", ["python"])
+    assert claim(client, c)["id"] == gold_id

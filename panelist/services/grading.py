@@ -72,9 +72,11 @@ def submit(
     task.assigned_expert_id = None
     task.assigned_at = None
     task.lease_expires_at = None
-    task.status = (
-        TaskStatus.submitted if task.grades_received >= task.required_grades else TaskStatus.queued
-    )
+    # Attention checks are reusable: they go back to the queue for other experts.
+    if task.is_attention_check or task.grades_received < task.required_grades:
+        task.status = TaskStatus.queued
+    else:
+        task.status = TaskStatus.submitted
     audit.record(db, f"expert:{expert.id}", "grade.submitted", "grade", grade.id)
 
     result = attention.evaluate(db, task, grade)
@@ -97,9 +99,11 @@ def review(db: Session, reviewer_key_id, grade_id, decision: ReviewDecision, rea
     task = db.scalar(select(Task).where(Task.id == grade.task_id).with_for_update())
     payout = None
     if decision == ReviewDecision.approve:
-        task.status = TaskStatus.approved
         payout = payouts.create_for_grade(db, grade, task, actor)
-    elif task.status not in (TaskStatus.approved,):
-        task.status = TaskStatus.rejected
+    if not task.is_attention_check:
+        if decision == ReviewDecision.approve:
+            task.status = TaskStatus.approved
+        elif task.status != TaskStatus.approved:
+            task.status = TaskStatus.rejected
     audit.record(db, actor, f"grade.{decision.value}", "grade", grade.id, {"reason": reason})
     return rec, payout

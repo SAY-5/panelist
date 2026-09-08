@@ -19,7 +19,7 @@ def _rows(db: Session):
         .join(Review, Review.grade_id == Grade.id)
         .join(Task, Task.id == Grade.task_id)
         .where(Review.decision == ReviewDecision.approve, Task.is_attention_check.is_(False))
-        .order_by(Grade.task_id, Grade.expert_id)
+        .order_by(Task.seq, Grade.expert_id)
     ).all()
     for g in grades:
         task = g.task

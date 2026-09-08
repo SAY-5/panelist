@@ -48,7 +48,7 @@ def test_export_is_versioned_checksummed_and_reproducible(
     assert hashlib.sha256(body).hexdigest() == first["checksum"]
     assert len(body) == first["size_bytes"]
     rows = [json.loads(line) for line in body.decode().splitlines()]
-    assert [r["external_ref"] for r in rows] == sorted(r["external_ref"] for r in rows)
+    assert [r["external_ref"] for r in rows] == ["t-1", "t-3"]
     assert {r["external_ref"] for r in rows} == {"t-1", "t-3"}
     assert all(set(r["scores"]) == {"accuracy", "clarity", "safety"} for r in rows)
     assert all(r["expert_tier"] == "senior" and r["rationale"] for r in rows)
