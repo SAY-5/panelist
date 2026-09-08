@@ -1,6 +1,6 @@
 """Attention checks: golden tasks with hidden expected scores."""
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Integer, cast, func, select, update
 from sqlalchemy.orm import Session
 
 from panelist.config import get_settings
@@ -88,10 +88,9 @@ def enforce(db: Session, expert: Expert) -> bool:
 
 def lifetime_counts(db: Session, expert_id) -> tuple[int, int]:
     row = db.execute(
-        select(
-            func.count(),
-            func.coalesce(func.sum(func.cast(AttentionResult.passed, __import__("sqlalchemy").Integer)), 0),
-        ).where(AttentionResult.expert_id == expert_id)
+        select(func.count(), func.coalesce(func.sum(cast(AttentionResult.passed, Integer)), 0)).where(
+            AttentionResult.expert_id == expert_id
+        )
     ).one()
     return int(row[0]), int(row[1])
 
@@ -103,8 +102,6 @@ def _refresh_global_rate(db: Session) -> None:
 
 
 def _global_counts(db: Session) -> tuple[int, int]:
-    from sqlalchemy import Integer, cast
-
     row = db.execute(
         select(func.count(), func.coalesce(func.sum(cast(AttentionResult.passed, Integer)), 0))
     ).one()

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, exists, func, or_, select, text, update
+from sqlalchemy import and_, exists, func, select, text, update
 from sqlalchemy.orm import Session
 
 from panelist.config import get_settings
@@ -175,15 +175,3 @@ def queue_summary(db: Session) -> dict[str, int]:
     for status, n in rows:
         out[status.value] = int(n)
     return out
-
-
-__all__ = [
-    "ClaimError",
-    "claim_by_id",
-    "claim_next",
-    "queue_depth_by_tag",
-    "queue_summary",
-    "reclaim_expired",
-    "release",
-    "or_",
-]
