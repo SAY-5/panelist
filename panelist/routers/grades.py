@@ -14,7 +14,9 @@ router = APIRouter(tags=["grades"])
 
 @router.post("/grades", response_model=schemas.GradeOut, status_code=201)
 def submit_grade(
-    body: schemas.GradeCreate, db: Session = Depends(get_db), expert: Expert = Depends(current_expert)
+    body: schemas.GradeCreate,
+    db: Session = Depends(get_db),
+    expert: Expert = Depends(current_expert),
 ):
     try:
         grade = grading.submit(
@@ -67,7 +69,12 @@ def create_review(
 ):
     try:
         rec, payout = grading.review(
-            db, uuid.UUID(principal.key_id), body.grade_id, body.decision, body.reason, principal.actor
+            db,
+            uuid.UUID(principal.key_id),
+            body.grade_id,
+            body.decision,
+            body.reason,
+            principal.actor,
         )
     except grading.GradingError as e:
         db.rollback()

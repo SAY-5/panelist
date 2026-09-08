@@ -29,9 +29,7 @@ def _eligible_tiers(tier: Tier) -> list[Tier]:
 
 def _eligibility(expert: Expert):
     """Filter for tasks this expert may take: tag overlap, tier gate, not already graded."""
-    already_graded = exists().where(
-        and_(Grade.task_id == Task.id, Grade.expert_id == expert.id)
-    )
+    already_graded = exists().where(and_(Grade.task_id == Task.id, Grade.expert_id == expert.id))
     return and_(
         Task.status == TaskStatus.queued,
         Task.required_tags.overlap(expert.tags),
@@ -126,9 +124,7 @@ def claim_by_id(db: Session, expert: Expert, task_id) -> Task:
     if expert.status != ExpertStatus.active:
         raise ClaimError(423, f"expert is {expert.status.value}")
     reclaim_expired(db)
-    task = db.scalar(
-        select(Task).where(Task.id == task_id).with_for_update(skip_locked=True)
-    )
+    task = db.scalar(select(Task).where(Task.id == task_id).with_for_update(skip_locked=True))
     if task is None:
         exists_row = db.scalar(select(Task.id).where(Task.id == task_id))
         if exists_row is None:

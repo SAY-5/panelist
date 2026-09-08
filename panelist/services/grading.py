@@ -89,7 +89,9 @@ def review(db: Session, reviewer_key_id, grade_id, decision: ReviewDecision, rea
         raise GradingError(404, "grade not found")
     if grade.review is not None:
         raise GradingError(409, "grade already reviewed")
-    rec = Review(grade_id=grade.id, reviewer_key_id=reviewer_key_id, decision=decision, reason=reason)
+    rec = Review(
+        grade_id=grade.id, reviewer_key_id=reviewer_key_id, decision=decision, reason=reason
+    )
     db.add(rec)
     db.flush()
     task = db.scalar(select(Task).where(Task.id == grade.task_id).with_for_update())

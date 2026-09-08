@@ -28,7 +28,7 @@ def _uuid() -> uuid.UUID:
     return uuid.uuid4()
 
 
-class Tier(str, enum.Enum):
+class Tier(enum.StrEnum):
     junior = "junior"
     senior = "senior"
     lead = "lead"
@@ -37,13 +37,13 @@ class Tier(str, enum.Enum):
 TIER_RANK = {Tier.junior: 0, Tier.senior: 1, Tier.lead: 2}
 
 
-class ExpertStatus(str, enum.Enum):
+class ExpertStatus(enum.StrEnum):
     active = "active"
     paused = "paused"
     inactive = "inactive"
 
 
-class TaskStatus(str, enum.Enum):
+class TaskStatus(enum.StrEnum):
     queued = "queued"
     assigned = "assigned"
     submitted = "submitted"
@@ -51,18 +51,18 @@ class TaskStatus(str, enum.Enum):
     rejected = "rejected"
 
 
-class ReviewDecision(str, enum.Enum):
+class ReviewDecision(enum.StrEnum):
     approve = "approve"
     reject = "reject"
 
 
-class PayoutStatus(str, enum.Enum):
+class PayoutStatus(enum.StrEnum):
     pending = "pending"
     withheld = "withheld"
     paid = "paid"
 
 
-class Role(str, enum.Enum):
+class Role(enum.StrEnum):
     expert = "expert"
     reviewer = "reviewer"
     admin = "admin"

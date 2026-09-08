@@ -64,7 +64,11 @@ def enforce(db: Session, expert: Expert) -> bool:
     """
     settings = get_settings()
     rate, _, total = rolling_pass_rate(db, expert.id)
-    if rate is None or total < settings.attention_min_checks or rate >= settings.attention_threshold:
+    if (
+        rate is None
+        or total < settings.attention_min_checks
+        or rate >= settings.attention_threshold
+    ):
         return False
     if expert.status == ExpertStatus.paused:
         return False
@@ -88,9 +92,9 @@ def enforce(db: Session, expert: Expert) -> bool:
 
 def lifetime_counts(db: Session, expert_id) -> tuple[int, int]:
     row = db.execute(
-        select(func.count(), func.coalesce(func.sum(cast(AttentionResult.passed, Integer)), 0)).where(
-            AttentionResult.expert_id == expert_id
-        )
+        select(
+            func.count(), func.coalesce(func.sum(cast(AttentionResult.passed, Integer)), 0)
+        ).where(AttentionResult.expert_id == expert_id)
     ).one()
     return int(row[0]), int(row[1])
 

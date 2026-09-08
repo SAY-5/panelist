@@ -136,9 +136,9 @@ def expert_reliability(db: Session, expert_id) -> dict:
     rejected = sum(int(n) for d, n in review_rows if d == ReviewDecision.reject)
     total = int(db.scalar(select(func.count(Grade.id)).where(Grade.expert_id == expert_id)) or 0)
     att = db.execute(
-        select(func.count(), func.coalesce(func.sum(cast(AttentionResult.passed, Integer)), 0)).where(
-            AttentionResult.expert_id == expert_id
-        )
+        select(
+            func.count(), func.coalesce(func.sum(cast(AttentionResult.passed, Integer)), 0)
+        ).where(AttentionResult.expert_id == expert_id)
     ).one()
     att_total, att_passed = int(att[0]), int(att[1])
 

@@ -55,7 +55,9 @@ def create_expert_key(
     key, raw = issue_key(db, Role.expert, expert_id=expert.id, label=expert.name)
     audit.record(db, principal.actor, "apikey.issued", "api_key", key.id)
     db.commit()
-    return schemas.ApiKeyOut(id=key.id, role=key.role, expert_id=key.expert_id, label=key.label, key=raw)
+    return schemas.ApiKeyOut(
+        id=key.id, role=key.role, expert_id=key.expert_id, label=key.label, key=raw
+    )
 
 
 @router.get("/{expert_id}/attention", response_model=schemas.AttentionSummary)
@@ -96,7 +98,12 @@ def set_status(
     if previous == ExpertStatus.paused and body.status == ExpertStatus.active:
         payouts.release_withheld(db, expert, principal.actor)
     audit.record(
-        db, principal.actor, "expert.status", "expert", expert.id, {"from": previous.value, "to": body.status.value}
+        db,
+        principal.actor,
+        "expert.status",
+        "expert",
+        expert.id,
+        {"from": previous.value, "to": body.status.value},
     )
     db.commit()
     return expert

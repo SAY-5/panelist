@@ -30,10 +30,17 @@ def _rows(db: Session):
             "required_tags": sorted(task.required_tags),
             "prompt": task.prompt,
             "responses": task.responses,
-            "rubric": {"id": str(g.rubric_id), "name": task.rubric.name, "version": task.rubric.version},
+            "rubric": {
+                "id": str(g.rubric_id),
+                "name": task.rubric.name,
+                "version": task.rubric.version,
+            },
             "expert_id": str(g.expert_id),
             "expert_tier": g.expert.tier.value,
-            "scores": {s.criterion.key: s.score for s in sorted(g.scores, key=lambda s: s.criterion.position)},
+            "scores": {
+                s.criterion.key: s.score
+                for s in sorted(g.scores, key=lambda s: s.criterion.position)
+            },
             "weighted_score": g.weighted_score,
             "rationale": g.rationale,
             "time_spent_seconds": g.time_spent_seconds,

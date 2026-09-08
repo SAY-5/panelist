@@ -45,9 +45,7 @@ def create_for_grade(db: Session, grade: Grade, task: Task, actor: str) -> Payou
     if existing is not None:
         return existing
     amount = rate_for(db, expert, task.task_type)
-    status = (
-        PayoutStatus.withheld if expert.status == ExpertStatus.paused else PayoutStatus.pending
-    )
+    status = PayoutStatus.withheld if expert.status == ExpertStatus.paused else PayoutStatus.pending
     payout = Payout(
         expert_id=expert.id,
         task_id=task.id,
@@ -152,8 +150,17 @@ def period_csv(db: Session, period: PayoutPeriod) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(
-        ["period", "payout_id", "expert_id", "expert_name", "task_id", "tier", "task_type",
-         "amount_cents", "paid_at"]
+        [
+            "period",
+            "payout_id",
+            "expert_id",
+            "expert_name",
+            "task_id",
+            "tier",
+            "task_type",
+            "amount_cents",
+            "paid_at",
+        ]
     )
     for payout, name in rows:
         writer.writerow(

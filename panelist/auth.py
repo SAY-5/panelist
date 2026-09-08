@@ -88,9 +88,7 @@ def require_scopes(*needed: str):
     def dependency(principal: Principal = Depends(authenticate)) -> Principal:
         missing = [s for s in needed if s not in principal.scopes]
         if missing:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN, f"missing scope: {', '.join(missing)}"
-            )
+            raise HTTPException(status.HTTP_403_FORBIDDEN, f"missing scope: {', '.join(missing)}")
         return principal
 
     return dependency

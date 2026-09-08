@@ -18,4 +18,6 @@ def create_key(
     key, raw = issue_key(db, body.role, expert_id=body.expert_id, label=body.label)
     audit.record(db, principal.actor, "apikey.issued", "api_key", key.id, {"role": body.role.value})
     db.commit()
-    return schemas.ApiKeyOut(id=key.id, role=key.role, expert_id=key.expert_id, label=key.label, key=raw)
+    return schemas.ApiKeyOut(
+        id=key.id, role=key.role, expert_id=key.expert_id, label=key.label, key=raw
+    )
