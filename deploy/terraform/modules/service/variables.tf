@@ -1,0 +1,13 @@
+variable "name" { type = string }
+variable "region" { type = string }
+variable "vpc_id" { type = string }
+variable "public_subnet_ids" { type = list(string) }
+variable "image" { type = string }
+variable "desired_count" { type = number }
+variable "cpu" { type = number }
+variable "memory" { type = number }
+variable "log_retention_days" { type = number }
+variable "database_url_arn" { type = string }
+variable "deliveries_bucket" { type = string }
+variable "deliveries_arn" { type = string }
+variable "attention_fraction" { type = number }
