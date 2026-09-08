@@ -1,7 +1,7 @@
 .PHONY: setup lint test migrate demo demo-down tf-validate tf-plan run
 
 COMPOSE := docker compose -f deploy/docker-compose.yml
-DEMO_DB := postgresql+psycopg://panelist:panelist@localhost:5433/panelist
+DEMO_DB := postgresql+psycopg://panelist:panelist@localhost:5439/panelist
 
 setup:
 	uv sync --extra dev
