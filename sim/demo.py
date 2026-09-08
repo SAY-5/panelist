@@ -18,7 +18,7 @@ from sim.world import RATES, RUBRIC, SimExpert, World, build_world, grade_for, w
 os.environ.setdefault("LEASE_SECONDS", "3")
 os.environ.setdefault("ATTENTION_FRACTION", "0.1")
 os.environ.setdefault("DELIVERY_S3_BUCKET", "panelist-deliveries")
-os.environ.setdefault("AWS_ENDPOINT_URL", "http://localhost:4566")
+os.environ.setdefault("AWS_ENDPOINT_URL", "http://localhost:4569")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
 os.environ.setdefault("LOG_LEVEL", "WARNING")

@@ -23,7 +23,7 @@ services:
       SERVICES: s3
       EAGER_SERVICE_LOADING: "1"
     ports:
-      - "4566:4566"
+      - "4569:4566"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health | grep -q '\"s3\": \"\\(running\\|available\\)\"'"]
       interval: 3s
