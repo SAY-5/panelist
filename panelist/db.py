@@ -12,7 +12,9 @@ _session_factory: sessionmaker | None = None
 def get_engine():
     global _engine, _session_factory
     if _engine is None:
-        _engine = create_engine(get_settings().database_url, pool_pre_ping=True, pool_size=20, max_overflow=30)
+        _engine = create_engine(
+            get_settings().database_url, pool_pre_ping=True, pool_size=20, max_overflow=30
+        )
         _session_factory = sessionmaker(bind=_engine, expire_on_commit=False)
     return _engine
 
