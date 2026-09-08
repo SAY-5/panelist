@@ -156,6 +156,14 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 
 `make test` runs 41 tests: tag and priority routing, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
 
+## Releases
+
+| Version | Highlights |
+| --- | --- |
+| 1.0.0 | Baseline: tag routing with locking and leases, rubrics, attention checks, payouts, analytics, checksummed deliveries, Terraform |
+
+See [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 MIT
