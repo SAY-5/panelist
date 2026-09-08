@@ -1,0 +1,274 @@
+/** Self-check for the simulation port. Run with `npm run selfcheck`. */
+
+import { Clock, EPOCH_MS } from "./sim/clock";
+import { runDemo, seedPlatform, DEFAULT_DEMO } from "./sim/demo";
+import { Platform, ServiceError } from "./sim/platform";
+import { sha256Hex } from "./sim/sha256";
+import { formatSummary } from "./sim/summary";
+import { DEMO_SETTINGS } from "./sim/types";
+import { buildWorld, CRITERIA } from "./sim/world";
+
+let passed = 0;
+let failed = 0;
+
+function check(name: string, ok: boolean, detail = ""): void {
+  if (ok) {
+    passed++;
+    console.log(`ok   ${name}`);
+  } else {
+    failed++;
+    console.log(`FAIL ${name}${detail ? `: ${detail}` : ""}`);
+  }
+}
+
+function fixture(seed = 11) {
+  const clock = new Clock(EPOCH_MS);
+  const world = buildWorld({ seed, experts: 6, tasks: 30, goldenShare: 0.2, now: clock.now() });
+  const platform = seedPlatform(world, DEMO_SETTINGS, clock);
+  return { clock, world, platform };
+}
+
+function truth(scores: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(CRITERIA.map((c) => [c, scores[c] ?? 3]));
+}
+
+// ----- sha256 known answers ---------------------------------------------------
+check("sha256 of empty string", sha256Hex("") === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+check("sha256 of abc", sha256Hex("abc") === "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+check(
+  "sha256 of a multi-block message",
+  sha256Hex("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq") ===
+    "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+);
+
+// ----- determinism ------------------------------------------------------------
+{
+  const a = runDemo(DEFAULT_DEMO);
+  const b = runDemo(DEFAULT_DEMO);
+  const sa = formatSummary(a.summary);
+  const sb = formatSummary(b.summary);
+  check("same seed gives identical summary", sa === sb);
+  check("summary block has the README shape", sa.startsWith("=".repeat(72) + "\nPANELIST DEMO SUMMARY\n") && sa.includes("tasks routed by tag (") && sa.includes("delivery v1:"));
+  const c = runDemo({ ...DEFAULT_DEMO, seed: 8 });
+  check("different seed changes the summary", formatSummary(c.summary) !== sa);
+  check("tag mismatch count is 0 in the full run", a.summary.mismatches === 0);
+  check("every steal attempt was blocked", a.summary.doubleBlocked === a.summary.doubleAttempts && a.summary.doubleAttempts === 40);
+  check("concurrent first claims land on unique rows", a.summary.uniqueFirstClaims === a.summary.concurrentFirstClaims);
+  check("the two abandoned leases were reclaimed", a.summary.reclaims === 2, String(a.summary.reclaims));
+  check("careless experts are paused", a.summary.paused.join(",") === "expert-04,expert-18", a.summary.paused.join(","));
+  check("golden tasks stay queued at the end", a.summary.taskStatus.queued === a.summary.golden && a.summary.taskStatus.assigned === 0);
+  check("payouts equal approved grades", a.summary.payoutsCreated === a.summary.approved);
+  check("statement plus withheld equals every payout", a.summary.period.payoutCount + a.summary.ledger.countsByStatus.withheld === a.summary.payoutsCreated);
+  check("ledger has no pending payouts after close", a.summary.ledger.totalsByStatus.pending === 0);
+  const withheldExperts = new Set(a.run.platform.payouts.filter((p) => p.status === "withheld").map((p) => a.run.platform.expert(p.expertId).name));
+  check("withheld payouts belong only to paused experts", [...withheldExperts].every((n) => a.summary.paused.includes(n)) && withheldExperts.size > 0);
+  check("delivery rows are the non-golden approved grades", a.summary.delivery.rowCount === a.run.platform.grades.filter((g) => g.review?.decision === "approve" && !a.run.platform.task(g.taskId).isAttentionCheck).length);
+  check("delivery checksum is the sha256 of the body", a.summary.delivery.checksum === sha256Hex(a.run.platform.buildJsonl().body));
+  check("delivery location carries version and sha prefix", a.summary.delivery.location.endsWith(`panelist-grades-v1-${a.summary.delivery.checksum.slice(0, 12)}.jsonl`));
+  check("agreement stats are within bounds", (a.summary.agreement.withinOne ?? 0) >= (a.summary.agreement.exactAgreement ?? 0) && (a.summary.agreement.meanAbsDiff ?? 0) >= 0);
+}
+
+// ----- claim race ------------------------------------------------------------
+{
+  const { platform } = fixture();
+  const eligibleCount = (t: Platform["tasks"][number]) => platform.experts.filter((e) => platform.isEligible(e, t)).length;
+  const target = platform.tasks
+    .filter((t) => !t.isAttentionCheck)
+    .sort((a, b) => eligibleCount(b) - eligibleCount(a) || Platform.order(a, b))[0];
+  if (!target) throw new Error("no task");
+  const claimants = platform.experts.filter((e) => platform.isEligible(e, target));
+  check("fixture has several eligible claimants", claimants.length >= 2, String(claimants.length));
+  let winners = 0;
+  let rejected = 0;
+  for (const e of claimants) {
+    try {
+      platform.claimById(e, target.id, true);
+      winners++;
+    } catch (err) {
+      if (err instanceof ServiceError && err.statusCode === 409) rejected++;
+    }
+  }
+  platform.releaseLock(target.id);
+  check("concurrent claims on one task yield exactly one owner", winners === 1 && rejected === claimants.length - 1);
+  check("blocked double assignments are counted", platform.metrics.doubleAssignBlocked === claimants.length - 1);
+  check("task is assigned to a single expert", target.status === "assigned" && target.assignedExpertId !== null);
+  const other = claimants.find((e) => e.id !== target.assignedExpertId);
+  let late409 = false;
+  try {
+    if (other) platform.claimById(other, target.id);
+  } catch (err) {
+    late409 = err instanceof ServiceError && err.statusCode === 409 && err.detail === "task is assigned";
+  }
+  check("a claim after commit is rejected with the row status", late409);
+}
+
+// ----- routing rules -----------------------------------------------------------
+{
+  const { platform } = fixture();
+  let mismatches = 0;
+  let claims = 0;
+  for (let round = 0; round < 20; round++) {
+    for (const e of platform.experts) {
+      const r = platform.claimNext(e);
+      if (!r.ok) continue;
+      claims++;
+      if (!r.task.requiredTags.some((t) => e.tags.includes(t))) mismatches++;
+      platform.release(e, r.task.id);
+    }
+  }
+  check("tag mismatch count is always 0 across many claims", mismatches === 0 && claims > 0);
+  const e0 = platform.experts[0];
+  if (!e0) throw new Error("no expert");
+  const cands = platform.candidates(e0, false);
+  const sorted = [...cands].sort(Platform.order);
+  check("candidates are ordered by priority desc, deadline asc, seq asc", cands.every((t, i) => t === sorted[i]) && cands.length > 1);
+  const junior = platform.experts.find((e) => e.tier === "junior");
+  const seniorTask = platform.tasks.find((t) => t.minTier === "senior" && junior !== undefined && t.requiredTags.some((x) => junior.tags.includes(x)));
+  let gated = false;
+  try {
+    if (junior && seniorTask) platform.claimById(junior, seniorTask.id);
+  } catch (err) {
+    gated = err instanceof ServiceError && err.statusCode === 403;
+  }
+  check("tier gate rejects a junior on a senior task", junior === undefined || seniorTask === undefined || gated);
+}
+
+// ----- lease and reclaim -------------------------------------------------------
+{
+  const { platform, clock } = fixture();
+  const e = platform.experts[0];
+  if (!e) throw new Error("no expert");
+  const r = platform.claimNext(e);
+  check("claim sets a lease", r.ok && r.task.leaseExpiresAt === clock.now() + 3000);
+  if (!r.ok) throw new Error("claim failed");
+  clock.advance(2999);
+  check("lease is still held before expiry", platform.reclaimExpired() === 0 && r.task.status === "assigned");
+  clock.advance(2);
+  const n = platform.reclaimExpired();
+  check("expired lease is reclaimed", n === 1 && r.task.status === "queued" && r.task.reclaimCount === 1 && r.task.assignedExpertId === null);
+  let late = false;
+  try {
+    platform.submitGrade(e, r.task.id, truth({}), "late", 10);
+  } catch (err) {
+    late = err instanceof ServiceError && err.statusCode === 409;
+  }
+  check("grading a reclaimed task is rejected with 409", late);
+}
+
+// ----- grading validation ------------------------------------------------------
+{
+  const { platform } = fixture();
+  const e = platform.experts[0];
+  if (!e) throw new Error("no expert");
+  const r = platform.claimNext(e);
+  if (!r.ok) throw new Error("claim failed");
+  let missing = false;
+  try {
+    platform.submitGrade(e, r.task.id, { accuracy: 3 }, "", 10);
+  } catch (err) {
+    missing = err instanceof ServiceError && err.statusCode === 422 && err.detail.includes("missing=");
+  }
+  check("rubric validation rejects a missing criterion", missing);
+  let range = false;
+  try {
+    platform.submitGrade(e, r.task.id, { ...truth({}), accuracy: 6 }, "", 10);
+  } catch (err) {
+    range = err instanceof ServiceError && err.statusCode === 422 && err.detail.includes("within [1, 5]");
+  }
+  check("rubric validation rejects an out-of-scale score", range);
+  const g = platform.submitGrade(e, r.task.id, { accuracy: 5, completeness: 3, clarity: 1, safety: 2 }, "ok", 100);
+  check("weighted score uses criterion weights", Math.abs(g.weightedScore - (5 * 2 + 3 * 1.5 + 1 + 2) / 5.5) < 1e-9);
+}
+
+// ----- attention checks and pausing -------------------------------------------
+{
+  const { platform } = fixture();
+  const golden = platform.tasks.filter((t) => t.isAttentionCheck);
+  const careless = platform.experts.find((e) => golden.some((t) => platform.isEligible(e, t)));
+  if (!careless) throw new Error("no eligible expert for golden tasks");
+  const goldenFor = golden.filter((t) => platform.isEligible(careless, t));
+  const bad = (t: (typeof golden)[number]) => Object.fromEntries(Object.entries(t.expectedScores ?? {}).map(([k, v]) => [k, v >= 3 ? 1 : 5]));
+  const first = goldenFor[0];
+  if (!first) throw new Error("no golden task");
+  platform.claimById(careless, first.id);
+  platform.submitGrade(careless, first.id, bad(first), "Looks fine.", 9);
+  check("one failed check does not pause below min checks", careless.status === "active" && platform.rollingPassRate(careless.id)[2] === 1);
+  check("golden task returns to the queue after a grade", first.status === "queued");
+  // Approve that grade so a pending payout exists before the pause.
+  const g0 = platform.grades[0];
+  if (!g0) throw new Error("no grade");
+  platform.review(g0.id, "approve");
+  check("approval creates a pending payout at the rate card", platform.payouts.length === 1 && platform.payouts[0]?.status === "pending" && platform.payouts[0]?.amountCents === platform.rateFor(careless, first.taskType));
+  const second = goldenFor[1];
+  if (!second) throw new Error("need a second golden task");
+  platform.claimById(careless, second.id);
+  platform.submitGrade(careless, second.id, bad(second), "Looks fine.", 9);
+  check("careless expert is paused after the threshold", careless.status === "paused" && platform.metrics.expertsPaused === 1);
+  check("pending payouts are withheld on pause", platform.payouts.every((p) => p.expertId !== careless.id || p.status === "withheld"));
+  const blocked = platform.claimNext(careless);
+  check("paused expert gets 423 on claim", !blocked.ok && blocked.statusCode === 423);
+  const g1 = platform.grades[1];
+  if (!g1) throw new Error("no second grade");
+  const { payout } = platform.review(g1.id, "approve");
+  check("new approvals for a paused expert are withheld", payout?.status === "withheld");
+  const closed = platform.closePeriod("2026-09-T");
+  check("period close skips withheld payouts", closed.payoutCount === 0 && platform.ledger().totalsByStatus.withheld === platform.ledger().grandTotalCents);
+  const released = platform.reinstate(careless);
+  check("reinstatement releases withheld payouts to pending", released === 2 && careless.status === "active" && platform.ledger().totalsByStatus.withheld === 0);
+}
+
+// ----- reviews, payouts and period close --------------------------------------
+{
+  const { platform } = fixture();
+  const e = platform.experts.find((x) => x.tier === "senior") ?? platform.experts[0];
+  if (!e) throw new Error("no expert");
+  const r1 = platform.claimNext(e);
+  if (!r1.ok) throw new Error("claim failed");
+  const g1 = platform.submitGrade(e, r1.task.id, truth({}), "fine", 200);
+  const r2 = platform.claimNext(e);
+  if (!r2.ok) throw new Error("claim failed");
+  const g2 = platform.submitGrade(e, r2.task.id, truth({}), "fine", 200);
+  platform.review(g1.id, "reject", "spot check failed");
+  platform.review(g2.id, "approve");
+  check("rejected grades are not paid", platform.payouts.length === 1 && platform.payouts[0]?.gradeId === g2.id);
+  check("rejected non-golden task is marked rejected", r1.task.isAttentionCheck || r1.task.status === "rejected");
+  let twice = false;
+  try {
+    platform.review(g2.id, "approve");
+  } catch (err) {
+    twice = err instanceof ServiceError && err.statusCode === 409;
+  }
+  check("a grade cannot be reviewed twice", twice);
+  const expected = platform.rateFor(e, r2.task.taskType);
+  const period = platform.closePeriod("2026-09-A");
+  check("statement total is the sum of paid rows", period.totalCents === expected && period.payoutCount === 1 && period.expertCount === 1);
+  check("closing the same period twice is rejected", (() => { try { platform.closePeriod("2026-09-A"); return false; } catch (err) { return err instanceof ServiceError && err.statusCode === 409; } })());
+  const csv = platform.periodCsv(platform.periods[0] as NonNullable<(typeof platform.periods)[number]>);
+  check("statement CSV has a header and one row", csv.split("\r\n").filter(Boolean).length === 2 && csv.startsWith("period,payout_id"));
+}
+
+// ----- delivery checksum ------------------------------------------------------
+{
+  const { platform } = fixture();
+  const e = platform.experts[0];
+  if (!e) throw new Error("no expert");
+  for (let i = 0; i < 3; i++) {
+    const r = platform.claimNext(e);
+    if (!r.ok) break;
+    platform.review(platform.submitGrade(e, r.task.id, truth({}), "fine", 100).id, "approve");
+  }
+  const first = platform.exportDelivery();
+  const again = platform.exportDelivery();
+  check("delivery checksum is stable for the same rows", first.checksum === again.checksum && again.version === 2);
+  const rows = platform.deliveryRows();
+  const altered = rows.map((row, i) => (i === 0 ? { ...row, rationale: row.rationale + " (edited)" } : row));
+  check("delivery checksum changes when a row changes", sha256Hex(Platform.jsonl(altered)) !== first.checksum);
+  const next = platform.claimNext(e);
+  if (next.ok) platform.review(platform.submitGrade(e, next.task.id, truth({}), "fine", 100).id, "approve");
+  const third = platform.exportDelivery();
+  check("a new approval changes the checksum and row count", third.checksum !== first.checksum && third.rowCount === first.rowCount + 1);
+  check("jsonl rows use sorted keys and compact separators", platform.buildJsonl().body.split("\n")[0]?.startsWith('{"expert_id":') === true && !platform.buildJsonl().body.includes(": "));
+}
+
+console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} assertions`);
+process.exit(failed === 0 ? 0 : 1);
