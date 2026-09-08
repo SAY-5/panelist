@@ -4,11 +4,13 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     DateTime,
     Enum,
     Float,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     String,
@@ -130,6 +132,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(), unique=True)
     external_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
     prompt: Mapped[str] = mapped_column(Text)
     responses: Mapped[list] = mapped_column(JSONB, default=list)
@@ -160,7 +163,7 @@ class Task(Base):
 
     __table_args__ = (
         Index("ix_tasks_required_tags", "required_tags", postgresql_using="gin"),
-        Index("ix_tasks_queue", "status", "priority", "deadline"),
+        Index("ix_tasks_queue", "status", "priority", "deadline", "seq"),
         Index("ix_tasks_lease", "status", "lease_expires_at"),
     )
 

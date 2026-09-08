@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 43892456ed8a
+Revision ID: 3dfe09ab9cdc
 Revises:
-Create Date: 2026-09-08 15:20:56.493561
+Create Date: 2026-09-08 15:25:50.531985
 
 """
 
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "43892456ed8a"
+revision: str = "3dfe09ab9cdc"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -144,6 +144,7 @@ def upgrade() -> None:
     op.create_table(
         "tasks",
         sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("seq", sa.BigInteger(), sa.Identity(always=False), nullable=False),
         sa.Column("external_ref", sa.String(length=128), nullable=True),
         sa.Column("prompt", sa.Text(), nullable=False),
         sa.Column("responses", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
@@ -181,9 +182,12 @@ def upgrade() -> None:
             ["rubrics.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("seq"),
     )
     op.create_index("ix_tasks_lease", "tasks", ["status", "lease_expires_at"], unique=False)
-    op.create_index("ix_tasks_queue", "tasks", ["status", "priority", "deadline"], unique=False)
+    op.create_index(
+        "ix_tasks_queue", "tasks", ["status", "priority", "deadline", "seq"], unique=False
+    )
     op.create_index(
         "ix_tasks_required_tags", "tasks", ["required_tags"], unique=False, postgresql_using="gin"
     )
@@ -355,3 +359,12 @@ def downgrade() -> None:
     op.drop_table("deliveries")
     op.drop_table("audit_events")
     # ### end Alembic commands ###
+    for enum_name in (
+        "tier",
+        "expert_status",
+        "task_status",
+        "review_decision",
+        "payout_status",
+        "role",
+    ):
+        op.execute(f"DROP TYPE IF EXISTS {enum_name}")

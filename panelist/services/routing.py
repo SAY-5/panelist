@@ -80,7 +80,7 @@ def _pick(db: Session, expert: Expert, want_attention: bool | None):
         .order_by(
             Task.priority.desc(),
             Task.deadline.asc().nulls_last(),
-            Task.created_at.asc(),
+            Task.seq.asc(),
         )
         .limit(1)
         .with_for_update(skip_locked=True)
