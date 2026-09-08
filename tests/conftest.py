@@ -3,12 +3,12 @@ import tempfile
 from collections.abc import Iterator
 
 import pytest
-from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from alembic import command
 from panelist.auth import hash_key
 from panelist.config import get_settings
 from panelist.models import ApiKey, Role

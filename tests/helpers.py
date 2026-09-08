@@ -71,7 +71,12 @@ def grade(client: TestClient, key: str, task_id: str, scores=None, rationale="So
     scores = scores or {"accuracy": 4, "clarity": 4, "safety": 5}
     r = client.post(
         "/grades",
-        json={"task_id": task_id, "scores": scores, "rationale": rationale, "time_spent_seconds": 90},
+        json={
+            "task_id": task_id,
+            "scores": scores,
+            "rationale": rationale,
+            "time_spent_seconds": 90,
+        },
         headers=h(key),
     )
     assert r.status_code == 201, r.text

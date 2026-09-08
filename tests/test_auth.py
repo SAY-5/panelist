@@ -35,7 +35,11 @@ def test_reviewer_cannot_claim_or_grade(client, admin_key, reviewer_key):
     assert (
         client.post(
             "/grades",
-            json={"task_id": "00000000-0000-0000-0000-000000000000", "scores": {}, "rationale": "x"},
+            json={
+                "task_id": "00000000-0000-0000-0000-000000000000",
+                "scores": {},
+                "rationale": "x",
+            },
             headers=h(reviewer_key),
         ).status_code
         == 403
