@@ -20,7 +20,7 @@ services:
   localstack:
     image: localstack/localstack:3.5
     environment:
-      SERVICES: s3
+      SERVICES: s3,ec2,iam,sts,secretsmanager,logs
       EAGER_SERVICE_LOADING: "1"
     ports:
       - "4569:4566"
