@@ -10,6 +10,7 @@ from panelist.models import (
     GradeScore,
     Review,
     ReviewDecision,
+    Rubric,
     Task,
     TaskStatus,
 )
@@ -30,6 +31,7 @@ def submit(
     scores: dict[str, float],
     rationale: str,
     time_spent_seconds: int,
+    rubric_id=None,
 ) -> Grade:
     task = db.scalar(select(Task).where(Task.id == task_id).with_for_update())
     if task is None:
@@ -37,7 +39,9 @@ def submit(
     if task.status != TaskStatus.assigned or task.assigned_expert_id != expert.id:
         raise GradingError(409, "task is not assigned to this expert")
 
-    rubric = task.rubric
+    rubric = task.pinned_rubric or task.rubric
+    if rubric_id is not None and rubric_id != rubric.id:
+        raise GradingError(409, _pin_conflict(db.get(Rubric, rubric_id), rubric))
     by_key = {c.key: c for c in rubric.criteria}
     missing = sorted(set(by_key) - set(scores))
     unknown = sorted(set(scores) - set(by_key))
@@ -83,6 +87,13 @@ def submit(
     if result is not None and not result.passed:
         attention.enforce(db, expert)
     return grade
+
+
+def _pin_conflict(given: Rubric | None, pinned: Rubric) -> str:
+    if given is None:
+        return f"unknown rubric; task is pinned to version {pinned.version}"
+    state = "superseded" if given.superseded_at else "not the pinned version"
+    return f"rubric version {given.version} is {state}; task is pinned to version {pinned.version}"
 
 
 def review(db: Session, reviewer_key_id, grade_id, decision: ReviewDecision, reason, actor: str):

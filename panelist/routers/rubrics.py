@@ -7,7 +7,7 @@ from panelist import schemas
 from panelist.auth import Principal, require_scopes
 from panelist.db import get_db
 from panelist.models import RateCard, Rubric, RubricCriterion
-from panelist.services import audit
+from panelist.services import audit, rubrics
 
 router = APIRouter(tags=["rubrics"])
 
@@ -39,6 +39,35 @@ def get_rubric(
     if rubric is None:
         raise HTTPException(404, "rubric not found")
     return rubric
+
+
+@router.post(
+    "/rubrics/{rubric_id}/versions", response_model=schemas.RubricPublishOut, status_code=201
+)
+def publish_version(
+    rubric_id: uuid.UUID,
+    body: schemas.RubricPublish,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(require_scopes("rubrics:write")),
+):
+    """Publish an immutable new version; queued tasks move to it, claimed tasks stay pinned."""
+    previous = db.get(Rubric, rubric_id)
+    if previous is None:
+        raise HTTPException(404, "rubric not found")
+    try:
+        rubric, migrated, open_on_previous = rubrics.publish(
+            db, previous, [c.model_dump() for c in body.criteria], principal.actor
+        )
+    except rubrics.RubricError as e:
+        db.rollback()
+        raise HTTPException(e.status_code, e.detail) from e
+    db.commit()
+    return schemas.RubricPublishOut(
+        rubric=schemas.RubricOut.model_validate(rubric),
+        previous_version=previous.version,
+        migrated_queued=migrated,
+        open_on_previous=open_on_previous,
+    )
 
 
 @router.put("/rate-cards", status_code=204)

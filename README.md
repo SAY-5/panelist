@@ -89,6 +89,7 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `admin`; each role 
 | GET | `/experts/{id}/attention` | tasks:read | Lifetime and rolling attention pass rate |
 | PATCH | `/experts/{id}/status` | experts:write | Pause, reinstate (releases withheld payouts) |
 | POST | `/rubrics` | rubrics:write | Versioned rubric with weighted, scaled criteria |
+| POST | `/rubrics/{id}/versions` | rubrics:write | Publish an immutable new version; queued tasks move to it, claimed tasks stay pinned |
 | PUT | `/rate-cards` | payouts:write | Rate per (tier, task type) |
 | POST | `/tasks` | tasks:write | Bulk create tasks, including golden ones |
 | POST | `/tasks/next` | tasks:claim | Claim the best eligible task (204 when none) |
@@ -97,7 +98,7 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `admin`; each role 
 | POST | `/tasks/reclaim` | tasks:write | Return expired leases to the queue |
 | GET | `/tasks/queue` | tasks:read | Depth by status and by tag |
 | GET | `/tasks/{id}` | tasks:read | Full task, including hidden fields |
-| POST | `/grades` | grades:write | Submit rubric scores, rationale, time spent |
+| POST | `/grades` | grades:write | Submit rubric scores, rationale, time spent; optional `rubric_id` must match the pinned version (409 otherwise) |
 | GET | `/grades` | grades:read | Unreviewed grades |
 | POST | `/reviews` | reviews:write | Approve or reject; approval creates the payout |
 | GET | `/payouts` | payouts:read | Payouts filtered by expert or status |
@@ -117,9 +118,9 @@ Experts only ever see `TaskExpertView`: prompt, responses, rubric, deadline and 
 ## Data model
 
 - `experts`: name, `tags[]` (GIN indexed), tier, optional per-task rate override, status, `served_count`.
-- `rubrics` and `rubric_criteria`: versioned; each criterion has key, weight, scale and position.
+- `rubrics` and `rubric_criteria`: immutable versions per name; a superseded version records `superseded_at` and `superseded_by_id`. Each criterion has key, weight, scale and position.
 - `rate_cards`: `(tier, task_type) -> rate_cents`, with a `default` task type fallback.
-- `tasks`: prompt, `responses` (JSONB), `required_tags[]`, task type, `min_tier`, priority, deadline, `required_grades`, `seq` for FIFO tiebreak, lease columns, `is_attention_check` and hidden `expected_scores`.
+- `tasks`: prompt, `responses` (JSONB), `required_tags[]`, task type, `min_tier`, priority, deadline, `required_grades`, `seq` for FIFO tiebreak, lease columns, `rubric_id` (follows the newest version while queued) and `pinned_rubric_id` (fixed at claim), `is_attention_check` and hidden `expected_scores`.
 - `grades`: `scores_snapshot` (JSONB), rationale, time spent, weighted score; one per (task, expert).
 - `grade_scores`: normalized `(grade_id, criterion_id, score)`, the source for all aggregates.
 - `reviews`, `payouts`, `payout_periods`: one payout per approved grade; totals are computed from rows, never stored by hand.
@@ -154,12 +155,13 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 
 ## Testing
 
-`make test` runs 41 tests: tag and priority routing, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
+`make test` runs 44 tests: tag and priority routing, rubric version publishing and pinning, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
 
 ## Releases
 
 | Version | Highlights |
 | --- | --- |
+| 2.0.0 | Immutable rubric versions: publish endpoint migrates queued tasks, claimed tasks stay pinned, grades and analytics carry the version |
 | 1.0.0 | Baseline: tag routing with locking and leases, rubrics, attention checks, payouts, analytics, checksummed deliveries, Terraform |
 
 See [CHANGELOG.md](CHANGELOG.md).

@@ -58,6 +58,7 @@ def _assign(db: Session, task: Task, expert: Expert) -> Task:
     settings = get_settings()
     now = _now()
     task.status = TaskStatus.assigned
+    task.pinned_rubric_id = task.rubric_id
     task.assigned_expert_id = expert.id
     task.assigned_at = now
     task.lease_expires_at = now + timedelta(seconds=settings.lease_seconds)

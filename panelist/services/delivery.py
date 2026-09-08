@@ -32,8 +32,8 @@ def _rows(db: Session):
             "responses": task.responses,
             "rubric": {
                 "id": str(g.rubric_id),
-                "name": task.rubric.name,
-                "version": task.rubric.version,
+                "name": g.rubric.name,
+                "version": g.rubric.version,
             },
             "expert_id": str(g.expert_id),
             "expert_tier": g.expert.tier.value,

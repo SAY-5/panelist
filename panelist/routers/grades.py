@@ -20,7 +20,13 @@ def submit_grade(
 ):
     try:
         grade = grading.submit(
-            db, expert, body.task_id, body.scores, body.rationale, body.time_spent_seconds
+            db,
+            expert,
+            body.task_id,
+            body.scores,
+            body.rationale,
+            body.time_spent_seconds,
+            rubric_id=body.rubric_id,
         )
     except grading.GradingError as e:
         db.rollback()

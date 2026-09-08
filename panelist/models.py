@@ -95,6 +95,10 @@ class Rubric(Base):
     name: Mapped[str] = mapped_column(String(200))
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    superseded_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("rubrics.id"), nullable=True
+    )
 
     criteria: Mapped[list["RubricCriterion"]] = relationship(
         back_populates="rubric", order_by="RubricCriterion.position", lazy="selectin"
@@ -140,6 +144,9 @@ class Task(Base):
     task_type: Mapped[str] = mapped_column(String(64), default="single")
     min_tier: Mapped[Tier] = mapped_column(Enum(Tier, name="tier"), default=Tier.junior)
     rubric_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("rubrics.id"))
+    pinned_rubric_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("rubrics.id"), nullable=True
+    )
     priority: Mapped[int] = mapped_column(Integer, default=0)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[TaskStatus] = mapped_column(
@@ -159,7 +166,10 @@ class Task(Base):
     reclaim_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    rubric: Mapped[Rubric] = relationship(lazy="selectin")
+    rubric: Mapped[Rubric] = relationship(lazy="selectin", foreign_keys=[rubric_id])
+    pinned_rubric: Mapped[Rubric | None] = relationship(
+        lazy="selectin", foreign_keys=[pinned_rubric_id]
+    )
 
     __table_args__ = (
         Index("ix_tasks_required_tags", "required_tags", postgresql_using="gin"),
@@ -185,6 +195,7 @@ class Grade(Base):
 
     task: Mapped[Task] = relationship(lazy="selectin")
     expert: Mapped[Expert] = relationship(lazy="selectin")
+    rubric: Mapped[Rubric] = relationship(lazy="selectin")
     scores: Mapped[list["GradeScore"]] = relationship(
         back_populates="grade", cascade="all, delete-orphan", lazy="selectin"
     )

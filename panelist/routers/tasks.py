@@ -9,7 +9,7 @@ from panelist.auth import Principal, current_expert, require_scopes
 from panelist.db import get_db
 from panelist.metrics import ASSIGNMENT_LATENCY
 from panelist.models import Expert, Task
-from panelist.services import audit, routing
+from panelist.services import audit, routing, rubrics
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -20,6 +20,9 @@ def create_tasks(
     db: Session = Depends(get_db),
     principal: Principal = Depends(require_scopes("tasks:write")),
 ):
+    stale = rubrics.superseded_among(db, {t.rubric_id for t in body.tasks})
+    if stale is not None:
+        raise HTTPException(409, f"rubric {stale.name} version {stale.version} is superseded")
     tasks = []
     for t in body.tasks:
         if t.is_attention_check and not t.expected_scores:

@@ -83,6 +83,19 @@ class RubricOut(ORMModel):
     name: str
     version: int
     criteria: list[CriterionOut]
+    superseded_at: datetime | None = None
+    superseded_by_id: uuid.UUID | None = None
+
+
+class RubricPublish(BaseModel):
+    criteria: list[CriterionIn] = Field(min_length=1)
+
+
+class RubricPublishOut(BaseModel):
+    rubric: RubricOut
+    previous_version: int
+    migrated_queued: int
+    open_on_previous: int
 
 
 class RateCardIn(BaseModel):
@@ -139,6 +152,7 @@ class TaskAdminView(ORMModel):
     task_type: str
     min_tier: Tier
     rubric_id: uuid.UUID
+    pinned_rubric_id: uuid.UUID | None
     priority: int
     deadline: datetime | None
     status: TaskStatus
@@ -162,6 +176,7 @@ class ReclaimOut(BaseModel):
 
 class GradeCreate(BaseModel):
     task_id: uuid.UUID
+    rubric_id: uuid.UUID | None = None
     scores: dict[str, float]
     rationale: str = Field(min_length=1)
     time_spent_seconds: int = Field(default=0, ge=0)
@@ -266,6 +281,7 @@ class AttentionSummary(BaseModel):
 class CriterionStat(BaseModel):
     rubric_id: uuid.UUID
     rubric_name: str
+    rubric_version: int
     criterion_key: str
     mean: float
     stddev: float | None

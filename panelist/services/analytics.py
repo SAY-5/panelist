@@ -22,6 +22,7 @@ def criterion_means(db: Session, rubric_id=None) -> list[dict]:
         select(
             Rubric.id,
             Rubric.name,
+            Rubric.version,
             RubricCriterion.key,
             func.avg(GradeScore.score),
             func.stddev_samp(GradeScore.score),
@@ -29,8 +30,10 @@ def criterion_means(db: Session, rubric_id=None) -> list[dict]:
         )
         .join(RubricCriterion, RubricCriterion.id == GradeScore.criterion_id)
         .join(Rubric, Rubric.id == RubricCriterion.rubric_id)
-        .group_by(Rubric.id, Rubric.name, RubricCriterion.key, RubricCriterion.position)
-        .order_by(Rubric.name, RubricCriterion.position)
+        .group_by(
+            Rubric.id, Rubric.name, Rubric.version, RubricCriterion.key, RubricCriterion.position
+        )
+        .order_by(Rubric.name, Rubric.version, RubricCriterion.position)
     )
     if rubric_id is not None:
         stmt = stmt.where(Rubric.id == rubric_id)
@@ -38,12 +41,13 @@ def criterion_means(db: Session, rubric_id=None) -> list[dict]:
         {
             "rubric_id": rid,
             "rubric_name": name,
+            "rubric_version": int(version),
             "criterion_key": key,
             "mean": float(mean),
             "stddev": float(sd) if sd is not None else None,
             "n": int(n),
         }
-        for rid, name, key, mean, sd, n in db.execute(stmt).all()
+        for rid, name, version, key, mean, sd, n in db.execute(stmt).all()
     ]
 
 

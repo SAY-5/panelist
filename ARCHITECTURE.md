@@ -14,6 +14,12 @@
 
 Tasks with `required_grades > 1` return to `queued` after each grade until enough grades exist; the "already graded by this expert" predicate keeps them from bouncing back to the same person.
 
+## Rubric versions
+
+A rubric row is never edited. `POST /rubrics/{id}/versions` inserts a new row with the same name and `MAX(version) + 1`, stamps the previous row with `superseded_at` and `superseded_by_id`, and retargets every queued task with no grades yet (`UPDATE tasks SET rubric_id = new WHERE rubric_id = old AND status = 'queued' AND grades_received = 0`). The response reports how many tasks migrated and how many open tasks (queued with partial grades, or assigned) still reference the previous version. Publishing from a superseded version is a 409, and so is creating tasks against one.
+
+Claiming copies `rubric_id` into `pinned_rubric_id`. Grade validation, the weighted score and `grades.rubric_id` all use the pinned version, so an expert who was shown version 1 keeps grading version 1 even if version 2 lands mid-lease. A grade may name the `rubric_id` it was produced against; a mismatch with the pinned version is a 409 that states both versions. Criterion analytics group by rubric version and delivery rows carry the version each grade was produced against.
+
 ## Attention checks
 
 Golden tasks are ordinary tasks with `is_attention_check = true` and a hidden `expected_scores` map. They are stored in the same table and served through the same endpoint, and `TaskExpertView` never serializes the two hidden fields, so experts cannot distinguish them.
