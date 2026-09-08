@@ -71,7 +71,8 @@ def test_multi_grade_task_returns_to_queue_until_complete(client, admin_key, db)
     assert task.status == TaskStatus.submitted and task.grades_received == 2
 
 
-def test_expert_view_hides_attention_fields(client, admin_key):
+def test_expert_view_hides_attention_fields(client, admin_key, settings):
+    settings.attention_fraction = 1.0
     rubric = setup_rubric(client, admin_key)
     (tid,) = make_tasks(
         client,

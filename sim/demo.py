@@ -185,7 +185,7 @@ def review_all(reviewer: httpx.Client, tasks_by_id: dict) -> tuple[int, int]:
         for g in batch:
             truth = weighted(tasks_by_id[g["task_id"]].true_scores)
             drift = abs(g["weighted_score"] - truth)
-            if len(g["rationale"]) < 20 or drift > 1.5:
+            if drift > 1.5:
                 reviewer.post(
                     "/reviews",
                     json={"grade_id": g["id"], "decision": "reject", "reason": "spot check failed"},
@@ -203,10 +203,11 @@ def main(argv=None) -> int:
     parser.add_argument("--experts", type=int, default=40)
     parser.add_argument("--tasks", type=int, default=500)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--golden-share", type=float, default=0.1, help="share of golden tasks")
     args = parser.parse_args(argv)
 
     settings = get_settings()
-    world = build_world(args.seed, args.experts, args.tasks, settings.attention_fraction)
+    world = build_world(args.seed, args.experts, args.tasks, args.golden_share)
     server = start_api()
     storage = ensure_bucket()
     admin_key = bootstrap(f"pk_admin_{secrets.token_urlsafe(16)}")
@@ -267,7 +268,11 @@ def main(argv=None) -> int:
     print("=" * 72)
     print("PANELIST DEMO SUMMARY")
     print("=" * 72)
-    print(f"experts: {len(world.experts)}  tasks: {len(world.tasks)}  seed: {args.seed}")
+    n_gold = sum(t.payload["is_attention_check"] for t in world.tasks)
+    print(
+        f"experts: {len(world.experts)}  tasks: {len(world.tasks)}"
+        f" (golden: {n_gold})  seed: {args.seed}"
+    )
     print(
         f"config: attention fraction {settings.attention_fraction},"
         f" window {settings.attention_window},"
@@ -280,7 +285,7 @@ def main(argv=None) -> int:
         f"double-assignment attempts blocked: {stats.double_blocked}/{stats.double_attempts}"
         f"  (concurrent first claims: {claimed}, unique: {unique})"
     )
-    print(f"expired leases reclaimed: {reclaims} (of which {reclaimed_now} by the admin sweep)")
+    print(f"expired leases reclaimed: {reclaims} (admin sweep: {reclaimed_now})")
     print(f"attention checks served: {checks_served}  failed: {checks_failed}")
     print(f"experts paused: {len(paused)} {paused}")
     print(

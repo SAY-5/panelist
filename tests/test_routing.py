@@ -187,3 +187,36 @@ def test_expert_never_receives_task_already_graded(client, admin_key):
     grade(client, a, tid)
     assert claim(client, a) is None
     assert claim(client, b)["id"] == tid
+
+
+def test_golden_tasks_are_never_served_as_filler(client, admin_key, settings):
+    settings.attention_fraction = 0.5
+    rubric = setup_rubric(client, admin_key)
+    make_tasks(
+        client,
+        admin_key,
+        rubric,
+        [{}]
+        + [
+            {
+                "is_attention_check": True,
+                "expected_scores": {"accuracy": 5, "clarity": 5, "safety": 5},
+            }
+            for _ in range(3)
+        ],
+    )
+    _, key = make_expert(client, admin_key, "A", ["python"])
+    first = claim(client, key)
+    assert (
+        client.get(f"/tasks/{first['id']}", headers=h(admin_key)).json()["is_attention_check"]
+        is False
+    )
+    second = claim(client, key)
+    assert (
+        client.get(f"/tasks/{second['id']}", headers=h(admin_key)).json()["is_attention_check"]
+        is True
+    )
+    grade(client, key, first["id"])
+    grade(client, key, second["id"])
+    # The regular queue is empty; two golden tasks remain but the third serve is not a check
+    assert claim(client, key) is None

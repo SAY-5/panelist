@@ -105,13 +105,10 @@ def claim_next(db: Session, expert: Expert) -> Task | None:
     period = max(1, round(1 / settings.attention_fraction)) if settings.attention_fraction else 0
     prefer_attention = period > 0 and (expert.served_count + 1) % period == 0
 
-    task = None
-    if prefer_attention:
-        task = _pick(db, expert, want_attention=True)
+    task = _pick(db, expert, want_attention=True) if prefer_attention else None
     if task is None:
+        # Golden tasks are never used as filler: only the regular queue is served here.
         task = _pick(db, expert, want_attention=False)
-    if task is None and not prefer_attention:
-        task = _pick(db, expert, want_attention=True)
     if task is None:
         CLAIMS.labels(outcome="empty").inc()
         return None

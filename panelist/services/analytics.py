@@ -13,6 +13,7 @@ from panelist.models import (
     ReviewDecision,
     Rubric,
     RubricCriterion,
+    Task,
 )
 
 
@@ -104,7 +105,11 @@ def task_agreement(db: Session, task_id) -> dict:
 def global_agreement(db: Session) -> dict:
     """Mean pairwise absolute score difference across every multi-graded task."""
     multi = db.scalars(
-        select(Grade.task_id).group_by(Grade.task_id).having(func.count(Grade.id) > 1)
+        select(Grade.task_id)
+        .join(Task, Task.id == Grade.task_id)
+        .where(Task.is_attention_check.is_(False))
+        .group_by(Grade.task_id)
+        .having(func.count(Grade.id) > 1)
     ).all()
     diffs: list[float] = []
     exact = 0

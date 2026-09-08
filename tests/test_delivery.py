@@ -8,7 +8,7 @@ GOLD = {"accuracy": 5, "clarity": 5, "safety": 5}
 
 
 def _seed(client, admin_key, reviewer_key, settings):
-    settings.attention_fraction = 0.0
+    settings.attention_fraction = 0.25  # the fourth serve is the golden task
     rubric = setup_rubric(client, admin_key)
     ids = make_tasks(
         client,

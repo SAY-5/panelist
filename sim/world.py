@@ -87,7 +87,7 @@ class World:
         return {t.id: t for t in self.tasks}
 
 
-def build_world(seed: int, n_experts: int, n_tasks: int, attention_fraction: float) -> World:
+def build_world(seed: int, n_experts: int, n_tasks: int, golden_share: float) -> World:
     w = World(seed)
     rng = w.rng
     for i in range(n_experts):
@@ -99,7 +99,7 @@ def build_world(seed: int, n_experts: int, n_tasks: int, attention_fraction: flo
     w.experts[7].abandons_first = True
     w.experts[29].abandons_first = True
 
-    n_attention = round(n_tasks * attention_fraction)
+    n_attention = round(n_tasks * golden_share)
     now = datetime.now(UTC)
     for i in range(n_tasks):
         is_attention = i < n_attention
