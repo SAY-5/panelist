@@ -13,3 +13,7 @@ deliveries/
 *.tfstate.*
 .terraform.lock.hcl
 tfplan
+
+# Browser verification output
+web/test-results/
+web/playwright-report/

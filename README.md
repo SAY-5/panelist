@@ -36,6 +36,24 @@ Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 16, Prometheus, Terrafor
 
 ## Quick start
 
+### Browser simulation
+
+The `web/` app runs a deterministic, in-memory simulation of the grading workflow. It uses synthetic experts and tasks; it does not connect to the API, create accounts, or move money. The existing Python/API demo below exercises the service separately.
+
+Use Node 20.19+ in the 20.x line, or Node 22.12+:
+
+```bash
+cd web
+npm ci --ignore-scripts
+npm run dev
+```
+
+Choose a seed and task count, apply the settings, then run, pause, or step through assignment, grading, review, and delivery. Reset repeats the active configuration. Inspect task states, the expert roster, and the latest 150 notable events. At completion, download the actual JSONL delivery and payout CSV; the displayed SHA-256 checksum belongs to the downloaded JSONL. Approved payout totals exclude withheld funds. Golden attention-check tasks remain reusable in the queue after the run.
+
+`npm run selfcheck` runs 54 assertions against the simulation engine. `npm run build` checks types and creates the static production bundle. For browser regressions, run `npx playwright install chromium` once, then `npm run test:e2e`. The browser tests cover deterministic exports, final-event completion, pause/configuration, and a narrow mobile layout. Visual conventions are recorded in `DESIGN.md` at the repository root.
+
+### API and local infrastructure
+
 ```bash
 make setup        # uv sync with dev extras
 make demo         # compose up (postgres + LocalStack), migrate, seed, simulate, summarize

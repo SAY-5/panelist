@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-09T01:20:00Z",
+  "title": "Design System: Panelist",
+  "extensions": {
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1000px"
+      },
+      {
+        "name": "stacked",
+        "value": "700px"
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-feedback",
+        "value": "background 0.15s, border-color 0.15s",
+        "purpose": "Button hover feedback; removed for reduced motion."
+      }
+    ],
+    "shadows": [
+      {
+        "name": "selected-view",
+        "value": "inset 0 -2px var(--accent)",
+        "purpose": "Underline the selected inspection view."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Run simulation",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary control for starting or pausing the simulation.",
+      "html": "<button class=\"run\">Run simulation</button>",
+      "css": ".run { font: 600 13px Arial, Helvetica, sans-serif; min-height: 42px; padding: 10px 14px; background: #b92f20; color: white; border: 1px solid #b92f20; border-radius: 4px; cursor: pointer; } .run:hover { background: #93251a; } .run:focus-visible { outline: 3px solid #b92f20; outline-offset: 4px; }"
+    }
+  ],
+  "narrative": {
+    "overview": "Controls stay beside observable results, and a dark delivery panel marks the final artifact.",
+    "keyCharacteristics": [
+      "Warm paper and red action accent",
+      "Monospaced operational data",
+      "Flat sections with visible rules"
+    ],
+    "dos": [
+      "Preserve textual status labels and keyboard access",
+      "Keep long data inside scrolling containers"
+    ],
+    "donts": [
+      "Do not communicate status through color alone"
+    ]
+  }
+}
