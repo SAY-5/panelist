@@ -1,7 +1,9 @@
 import uuid
 
+import pytest
+
 from panelist.models import Grade, GradeScore, Task, TaskStatus
-from tests.helpers import claim, grade, h, make_expert, make_tasks, setup_rubric
+from tests.helpers import claim, grade, h, make_expert, make_tasks, review, setup_rubric
 
 
 def test_scores_are_validated_against_rubric(client, admin_key):
@@ -91,3 +93,29 @@ def test_expert_view_hides_attention_fields(client, admin_key, settings):
     assert "is_attention_check" not in got and "expected_scores" not in got
     admin_view = client.get(f"/tasks/{tid}", headers=h(admin_key)).json()
     assert admin_view["is_attention_check"] is True
+
+
+@pytest.mark.parametrize("decision", ["approve", "reject"])
+@pytest.mark.parametrize("second_already_claimed", [False, True])
+def test_early_review_preserves_remaining_grading_work(
+    client, admin_key, reviewer_key, decision, second_already_claimed
+):
+    rubric = setup_rubric(client, admin_key)
+    (tid,) = make_tasks(client, admin_key, rubric, [{"required_grades": 2}])
+    _, first_key = make_expert(client, admin_key, "First", ["python"])
+    _, second_key = make_expert(client, admin_key, "Second", ["python"])
+    assert claim(client, first_key)["id"] == tid
+    first_grade = grade(client, first_key, tid)
+    if second_already_claimed:
+        assert claim(client, second_key)["id"] == tid
+
+    review(client, reviewer_key, first_grade["id"], decision)
+    task = client.get(f"/tasks/{tid}", headers=h(admin_key)).json()
+    assert task["status"] == ("assigned" if second_already_claimed else "queued")
+    if not second_already_claimed:
+        assert claim(client, second_key)["id"] == tid
+    second_grade = grade(client, second_key, tid)
+    review(client, reviewer_key, second_grade["id"], "reject")
+    task = client.get(f"/tasks/{tid}", headers=h(admin_key)).json()
+    assert task["status"] == ("approved" if decision == "approve" else "rejected")
+    assert task["grades_received"] == 2

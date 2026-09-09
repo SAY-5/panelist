@@ -111,10 +111,13 @@ def review(db: Session, reviewer_key_id, grade_id, decision: ReviewDecision, rea
     payout = None
     if decision == ReviewDecision.approve:
         payout = payouts.create_for_grade(db, grade, task, actor)
-    if not task.is_attention_check:
-        if decision == ReviewDecision.approve:
-            task.status = TaskStatus.approved
-        elif task.status != TaskStatus.approved:
-            task.status = TaskStatus.rejected
+    if not task.is_attention_check and task.grades_received >= task.required_grades:
+        approved_review = db.scalar(
+            select(Review.id)
+            .join(Grade, Grade.id == Review.grade_id)
+            .where(Grade.task_id == task.id, Review.decision == ReviewDecision.approve)
+            .limit(1)
+        )
+        task.status = TaskStatus.approved if approved_review is not None else TaskStatus.rejected
     audit.record(db, actor, f"grade.{decision.value}", "grade", grade.id, {"reason": reason})
     return rec, payout
