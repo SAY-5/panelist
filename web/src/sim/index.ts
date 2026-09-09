@@ -9,3 +9,5 @@ export { formatSummary, dollars } from "./summary";
 export type { DemoSummary, Timing } from "./summary";
 export { createDemo, runDemo, seedPlatform, DEFAULT_DEMO, NOTABLE } from "./demo";
 export type { DemoEvent, DemoOptions, DemoRun, DemoStats } from "./demo";
+export { createWorkbench, trueScoresFor } from "./workbench";
+export type { Workbench } from "./workbench";
