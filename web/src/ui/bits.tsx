@@ -1,11 +1,7 @@
 import { ReactNode } from "react";
 
 export function Stamp({ children, tone = "ink", animate = false }: { children: ReactNode; tone?: "ink" | "accent"; animate?: boolean }) {
-  return (
-    <span className={`stamp stamp-${tone}${animate ? " stamp-in" : ""}`} role="status">
-      {children}
-    </span>
-  );
+  return <span className={`stamp stamp-${tone}${animate ? " stamp-in" : ""}`}>{children}</span>;
 }
 
 export function Tag({ children, active = false }: { children: ReactNode; active?: boolean }) {
