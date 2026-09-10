@@ -82,7 +82,7 @@ export function DeliverySection() {
           )}
           {rows.length > 8 ? <p className="card-note">{rows.length - 8} more rows not shown.</p> : null}
           {firstLine ? (
-            <pre className="csv section-gap-sm">{firstLine.slice(0, 420)}…</pre>
+            <pre className="jsonl-preview section-gap-sm">{firstLine.slice(0, 420)}…</pre>
           ) : null}
         </Card>
 

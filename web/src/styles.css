@@ -1021,3 +1021,21 @@ tfoot td {
   padding-top: 12px;
   border-top: 1px solid var(--rule);
 }
+
+th.num + th,
+td.num + td {
+  padding-left: 14px;
+}
+
+.jsonl-preview {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 10px;
+  font-size: 10.5px;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 132px;
+  overflow-y: auto;
+}
