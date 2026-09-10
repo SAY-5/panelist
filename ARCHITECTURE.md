@@ -42,6 +42,12 @@ While a task is waiting for its remaining graders or for an adjudicator, `POST /
 
 Payouts follow from that: the delivered grade is paid the card rate, and the outvoted grades are paid according to `CONSENSUS_OUTVOTED_PAYOUT`, which is `full` (the card rate), `partial` (`CONSENSUS_OUTVOTED_RATE` of it, rounded to whole cents) or `none` (no payout row at all). The delivery export joins on the consensus row and emits only the delivered grade for a consensus task, so a task graded by three experts contributes one dataset row, not three, and that row carries the round status, the grader count and the spread.
 
+## Operations
+
+`GET /ops/overview` is one read of the whole system: queue depth by required tag, task counts by status, the number of assigned tasks whose lease has already expired, the paused experts with the calibration score they were carrying, the adjudication backlog, the last closed payout period together with the payouts that are not in any statement yet, and the newest delivery. Every number is a query over the same rows the API writes; nothing is cached.
+
+`uv run panelist tick` is the scheduler pass, meant for cron or an ECS scheduled task. It reclaims expired leases, walks every expert through `calibration.update` so a score never goes stale because nobody happened to review that expert, and returns a JSON report. The `reminders` list is the part an operator reads: experts still below `CALIBRATION_MIN_SAMPLES`, payouts sitting outside a statement together with how long ago the last period closed, and tasks still waiting for an adjudicator. The tick writes an `ops.tick` audit event, so its own runs are in the same trail as everything else, and `GET /ops/audit.csv` exports that trail for admins, filtered by action and start time.
+
 ## Payouts and the ledger
 
 Approving a grade creates exactly one payout (unique on `grade_id` and on `(task_id, expert_id)`). The amount comes from the expert's `task_rate_cents` override if set, otherwise from `rate_cards(tier, task_type)`, falling back to `(tier, 'default')`. Tier and task type are copied onto the payout so later rate changes do not rewrite history.

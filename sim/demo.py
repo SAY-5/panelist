@@ -27,6 +27,7 @@ os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
 
 from panelist.cli import bootstrap  # noqa: E402
+from panelist.cli import tick as run_tick  # noqa: E402
 from panelist.config import get_settings  # noqa: E402
 from panelist.db import session_factory  # noqa: E402
 from panelist.main import app  # noqa: E402
@@ -68,7 +69,7 @@ def client(key: str) -> httpx.Client:
     return httpx.Client(base_url=BASE, headers={"X-API-Key": key}, timeout=30)
 
 
-def seed(world: World, admin: httpx.Client) -> tuple[str, str]:
+def seed(world: World, admin: httpx.Client) -> tuple[str, str, str]:
     rubric = admin.post("/rubrics", json=RUBRIC).json()
     admin.put("/rate-cards", json=RATES).raise_for_status()
     for e in world.experts:
@@ -84,7 +85,10 @@ def seed(world: World, admin: httpx.Client) -> tuple[str, str]:
     reviewer = admin.post("/admin/api-keys", json={"role": "reviewer", "label": "sim"}).json()[
         "key"
     ]
-    return rubric["id"], reviewer
+    senior = admin.post(
+        "/admin/api-keys", json={"role": "senior_reviewer", "label": "sim-senior"}
+    ).json()["key"]
+    return rubric["id"], reviewer, senior
 
 
 class Stats:
@@ -198,6 +202,35 @@ def review_all(reviewer: httpx.Client, tasks_by_id: dict) -> tuple[int, int]:
                 approved += 1
 
 
+def adjudicate_all(senior: httpx.Client, tasks_by_id: dict) -> tuple[int, int]:
+    """A senior reviewer settles every disputed task by picking the grade nearest the truth."""
+    resolved = outvoted = 0
+    while True:
+        queue = senior.get("/adjudications", params={"limit": 1000}).json()
+        if not queue:
+            return resolved, outvoted
+        for entry in queue:
+            truth = weighted(tasks_by_id[entry["task_id"]].true_scores)
+            best = min(entry["grades"], key=lambda g: abs(g["weighted_score"] - truth))
+            r = senior.post(
+                f"/adjudications/{entry['task_id']}",
+                json={
+                    "delivered_grade_id": best["grade_id"],
+                    "reason": "closest to the reference answer",
+                },
+            )
+            r.raise_for_status()
+            resolved += 1
+            outvoted += len(r.json()["outvoted"])
+
+
+def tier_moves(world: World, admin: httpx.Client) -> list[dict]:
+    moves = []
+    for e in world.experts:
+        moves.extend(admin.get(f"/experts/{e.id}/calibration").json()["changes"])
+    return moves
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Panelist end-to-end demo")
     parser.add_argument("--experts", type=int, default=40)
@@ -213,7 +246,7 @@ def main(argv=None) -> int:
     admin_key = bootstrap(f"pk_admin_{secrets.token_urlsafe(16)}")
     admin = client(admin_key)
     t0 = time.perf_counter()
-    _, reviewer_key = seed(world, admin)
+    _, reviewer_key, senior_key = seed(world, admin)
     tasks_by_id = world.by_id()
     stats = Stats()
 
@@ -241,13 +274,18 @@ def main(argv=None) -> int:
 
     reviewer = client(reviewer_key)
     approved, rejected = review_all(reviewer, tasks_by_id)
+    senior = client(senior_key)
+    adjudicated, outvoted = adjudicate_all(senior, tasks_by_id)
     period = admin.post("/payouts/periods/close", json={"label": "2026-09-A"}).json()
     ledger = admin.get("/payouts/ledger").json()
     agreement = admin.get("/analytics/agreement/global").json()
     criteria = admin.get("/analytics/criteria").json()
     delivery = admin.get("/deliveries/export").json()
+    tick = run_tick()
+    moves = tier_moves(world, admin)
     queue = admin.get("/tasks/queue").json()
     metrics = admin.get("/metrics").text
+    overview = admin.get("/ops/overview").json()
 
     with session_factory()() as db:
         reclaims = int(db.scalar(select(func.coalesce(func.sum(Task.reclaim_count), 0))))
@@ -292,6 +330,18 @@ def main(argv=None) -> int:
         f"grades stored: {int(float(metric('panelist_grades_total')))}"
         f"  approved: {approved}  rejected: {rejected}"
     )
+    order = ["junior", "senior", "lead"]
+    ups = sum(1 for m in moves if order.index(m["to_tier"]) > order.index(m["from_tier"]))
+    counts = {t: int(float(metric('panelist_experts_by_tier{tier="' + t + '"}'))) for t in order}
+    by_tier = ", ".join(f"{t}={n}" for t, n in counts.items())
+    print(
+        f"tier moves: {len(moves)} ({ups} up, {len(moves) - ups} down)  experts by tier: {by_tier}"
+    )
+    print(
+        f"adjudications: {adjudicated} resolved by the senior reviewer,"
+        f" {outvoted} outvoted grades paid at"
+        f" {settings.consensus_outvoted_payout} ({settings.consensus_outvoted_rate})"
+    )
     print(f"task status: {queue['by_status']}")
     print(
         f"payouts created: {sum(r['payout_count'] for r in ledger['rows'])}"
@@ -320,6 +370,36 @@ def main(argv=None) -> int:
         f"grading wall time: {grading_seconds:.1f}s  claim latency over {len(lat)} claims:"
         f" p50 {p50 * 1000:.1f}ms  p95 {p95 * 1000:.1f}ms"
     )
+    print("-" * 72)
+    print("OPS OVERVIEW (GET /ops/overview)")
+    ops_tags = ", ".join(f"{k}={v}" for k, v in sorted(overview["queued_by_tag"].items()))
+    print(f"queue depth by tag: {ops_tags}")
+    print(
+        f"tasks by status: {overview['tasks_by_status']}"
+        f"  expired leases: {overview['expired_leases']}"
+    )
+    print(
+        f"paused experts: {len(overview['paused_experts'])}"
+        f" {[e['name'] for e in overview['paused_experts']]}"
+        f"  adjudication backlog: {overview['adjudication_backlog']}"
+    )
+    print(
+        f"period {overview['period']['last_label']}:"
+        f" {overview['period']['unbilled_payouts']} payouts"
+        f" (${overview['period']['unbilled_cents'] / 100:,.2f}) not yet in a statement,"
+        f" ${overview['period']['withheld_cents'] / 100:,.2f} withheld"
+    )
+    print(
+        f"last delivery: v{overview['last_delivery']['version']},"
+        f" {overview['last_delivery']['row_count']} rows,"
+        f" {overview['last_delivery']['created_at']}"
+    )
+    print(
+        f"tick: reclaimed {tick['reclaimed']}, scored {tick['experts_scored']} experts,"
+        f" {len(tick['tier_changes'])} tier moves"
+    )
+    for reminder in tick["reminders"]:
+        print(f"  reminder: {reminder}")
     print("=" * 72)
     server.should_exit = True
     return 0 if stats.mismatches == 0 and stats.double_blocked == stats.double_attempts else 1

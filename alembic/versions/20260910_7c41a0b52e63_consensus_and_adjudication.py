@@ -71,5 +71,5 @@ def downgrade() -> None:
     op.execute("DROP TYPE IF EXISTS consensus_status")
     op.execute("UPDATE tasks SET status = 'submitted' WHERE status = 'adjudication'")
     _shrink_enum("task_status", TASK_STATUS_BEFORE, "tasks", "status")
-    op.execute("DELETE FROM api_keys WHERE role = 'senior_reviewer'")
+    op.execute("UPDATE api_keys SET role = 'reviewer' WHERE role = 'senior_reviewer'")
     _shrink_enum("role", ROLE_BEFORE, "api_keys", "role")

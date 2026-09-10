@@ -45,11 +45,11 @@ make tf-validate  # terraform fmt + validate
 make demo-down    # stop the local stack
 ```
 
-`make run` starts the API on port 8000 against `DATABASE_URL` (default `postgresql+psycopg://panelist:panelist@localhost:5439/panelist`). Create the first admin key with `uv run panelist bootstrap --key <secret>`. Interactive docs are at `/docs`.
+`make run` starts the API on port 8000 against `DATABASE_URL` (default `postgresql+psycopg://panelist:panelist@localhost:5439/panelist`). Create the first admin key with `uv run panelist bootstrap --key <secret>`. `uv run panelist tick` is the scheduler pass: it reclaims expired leases, refreshes every expert's calibration score and prints a JSON report with the reminders an operator should act on. Interactive docs are at `/docs`.
 
 ## Demo
 
-`make demo` seeds 40 experts across eight expertise tags and 500 tasks (50 of them golden attention checks with hidden expected scores), then runs all 40 experts concurrently against the HTTP API. Two experts grade carelessly, two abandon their first claim, a reviewer spot-checks every grade against the known answer, a pay period is closed, and the approved grades are exported to LocalStack S3. Output of a real run:
+`make demo` seeds 40 experts across eight expertise tags and 500 tasks (50 of them golden attention checks with hidden expected scores), then runs all 40 experts concurrently against the HTTP API. Two experts grade carelessly, two abandon their first claim, a reviewer spot-checks every grade against the known answer, a senior reviewer settles every task whose graders disagreed beyond the tolerance, a pay period is closed, the approved grades are exported to LocalStack S3, and the run ends with a scheduler tick and `GET /ops/overview`. Output of a real run:
 
 ```
 ========================================================================
@@ -117,6 +117,8 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | GET | `/analytics/agreement/global` | analytics:read | Agreement across all multi-graded tasks |
 | GET | `/analytics/experts/{id}/reliability` | analytics:read | Approval rate, attention rate, deviation from consensus |
 | GET | `/deliveries/export` | deliveries:write | Build and store a new dataset version |
+| GET | `/ops/overview` | tasks:read | Queue depth by tag, paused experts, adjudication backlog, period status, last delivery |
+| GET | `/ops/audit.csv` | admin | Audit trail as CSV, filterable by action and start time |
 | GET | `/metrics` | none | Prometheus metrics |
 | GET | `/healthz` | none | Liveness with a database round trip |
 
@@ -171,12 +173,13 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 
 ## Testing
 
-`make test` runs 52 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
+`make test` runs 56 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, exact `/ops/overview` counts on a seeded fixture, the scheduler tick and the audit export, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
 
 ## Releases
 
 | Version | Highlights |
 | --- | --- |
+| 5.0.0 | Operations: `/ops/overview`, the `panelist tick` scheduler pass with lease reclaim and reminders, a CSV audit export, and gauges for the adjudication backlog, paused experts and tier distribution |
 | 4.0.0 | Consensus over k graders: agreement inside the tolerance picks the delivered grade, disagreement opens an adjudication queue for a senior reviewer, outvoted graders are paid by a configurable rule |
 | 3.0.0 | Expert calibration: rolling agreement with reviewers and golden answers, tier promotion and demotion with a hysteresis band, routing follows the live tier |
 | 2.0.0 | Immutable rubric versions: publish endpoint migrates queued tasks, claimed tasks stay pinned, grades and analytics carry the version |
