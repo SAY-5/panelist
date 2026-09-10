@@ -1,0 +1,44 @@
+# Panelist browser demo
+
+A static page that runs the Panelist service layer in the browser. `src/sim/` is a
+TypeScript port of `panelist/services/{routing,grading,attention,payouts,analytics,delivery}.py`
+and `sim/{world,demo}.py`, with a seeded PRNG and a virtual clock standing in for
+PostgreSQL and the wall clock. No backend, no network calls, no Docker.
+
+## Commands
+
+```bash
+npm install
+npm run dev        # vite dev server
+npm run build      # typecheck, then a production build into dist/
+npm run selfcheck  # 54 assertions over the ported rules
+npm run typecheck  # tsc --noEmit
+```
+
+## Layout
+
+| Path | What it holds |
+| --- | --- |
+| `src/sim/platform.ts` | Claims, leases, reclaim, rubric validation, attention, reviews, payouts, aggregates, delivery |
+| `src/sim/world.ts` | Seeded experts, tasks, golden checks, rate cards, grading behaviour |
+| `src/sim/demo.ts` | The 500-task run as a generator, one observable event per step |
+| `src/sim/summary.ts` | `formatSummary()`, the same block `sim/demo.py` prints |
+| `src/sim/prng.ts`, `clock.ts`, `sha256.ts` | sfc32 PRNG, virtual clock, vendored SHA-256 |
+| `src/selfcheck.ts` | Node self-check for the port |
+| `src/ui/` | Page sections built on one shared in-memory platform |
+
+## Rules the port keeps
+
+- `src/sim/` never calls `Math.random`, `Date.now` or `eval`. A seed plus a start
+  time fully determines a run, so the same seed always prints the same summary.
+- Numbers shown on the page are produced by running the port in the page, not
+  typed into markup. The port has its own PRNG, so its totals differ from the
+  Python run quoted in the top-level README while every invariant holds:
+  zero tag mismatches, every double-assignment attempt blocked, careless experts
+  paused, withheld payouts kept out of the statement.
+- The checksum on the delivery card is a real SHA-256 of the JSONL body,
+  recomputed on every change.
+
+## Deployment
+
+`vercel.json` builds with Vite and serves `dist/`. Set the project root to `web/`.

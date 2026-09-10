@@ -77,6 +77,10 @@ grading wall time: 13.3s  claim latency over 736 claims: p50 210.6ms  p95 521.3m
 
 Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. The two paused experts are the careless ones; their 14 approved grades are the $48.00 withheld from the statement. Claim latency is measured client side with 40 threads hammering a single in-process uvicorn worker. The demo raises the served attention fraction to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
 
+### Browser demo
+
+`web/` is a static Vite and React page that runs the routing, grading, attention, payout, analytics and delivery services as a TypeScript port, with a seeded PRNG and a virtual clock in place of PostgreSQL and the wall clock. It steps the same 500-task scenario in the browser and prints the same summary block, so the claim race, the attention guard, the rate card and the delivery checksum can be poked at without a database. `npm install && npm run dev` inside `web/`, and `npm run selfcheck` runs the assertions that hold the port to the service's behaviour.
+
 ## API
 
 All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `admin`; each role maps to a fixed scope set enforced by a FastAPI dependency.
