@@ -991,3 +991,27 @@ pre {
 .controls.tight {
   margin-top: 0;
 }
+
+.prompt {
+  font-size: 13px;
+  color: var(--ink-2);
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--rule);
+}
+
+tfoot td {
+  border-bottom: 0;
+  border-top: 1px solid var(--rule-2);
+  color: var(--ink-2);
+  padding-top: 8px;
+}
+
+.csv {
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 10px;
+  font-size: 10.5px;
+  color: var(--ink-2);
+}
