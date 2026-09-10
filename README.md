@@ -83,7 +83,7 @@ Reading the numbers: the 50 queued tasks at the end are the golden tasks, which 
 
 ## API
 
-All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `admin`; each role maps to a fixed scope set enforced by a FastAPI dependency.
+All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, `admin`; each role maps to a fixed scope set enforced by a FastAPI dependency.
 
 | Method | Path | Scope | Purpose |
 | --- | --- | --- | --- |
@@ -106,6 +106,8 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `admin`; each role 
 | POST | `/grades` | grades:write | Submit rubric scores, rationale, time spent; optional `rubric_id` must match the pinned version (409 otherwise) |
 | GET | `/grades` | grades:read | Unreviewed grades |
 | POST | `/reviews` | reviews:write | Approve or reject; approval creates the payout |
+| GET | `/adjudications` | tasks:read | Tasks whose graders disagreed, with every grade and the spread |
+| POST | `/adjudications/{task_id}` | adjudications:write | Pick the delivered grade; the rest are outvoted |
 | GET | `/payouts` | payouts:read | Payouts filtered by expert or status |
 | GET | `/payouts/ledger` | payouts:read | Derived totals by expert and status |
 | POST | `/payouts/periods/close` | payouts:write | Batch pending payouts into a statement |
@@ -129,6 +131,7 @@ Experts only ever see `TaskExpertView`: prompt, responses, rubric, deadline and 
 - `tasks`: prompt, `responses` (JSONB), `required_tags[]`, task type, `min_tier`, priority, deadline, `required_grades`, `seq` for FIFO tiebreak, lease columns, `rubric_id` (follows the newest version while queued) and `pinned_rubric_id` (fixed at claim), `is_attention_check` and hidden `expected_scores`.
 - `grades`: `scores_snapshot` (JSONB), rationale, time spent, weighted score; one per (task, expert).
 - `grade_scores`: normalized `(grade_id, criterion_id, score)`, the source for all aggregates.
+- `consensus`: one row per task graded by two or more experts, holding the spread, the tolerance in force, the delivered grade and, for an adjudicated round, the senior reviewer key and their reason.
 - `reviews`, `payouts`, `payout_periods`: one payout per approved grade; totals are computed from rows, never stored by hand.
 - `attention_results`, `audit_events`, `api_keys` (sha256 hashes only), `deliveries`.
 
@@ -160,17 +163,21 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 | `CALIBRATION_MIN_SAMPLES` | 5 | Signals required before a tier can move |
 | `CALIBRATION_PROMOTE_AT` | 0.9 | Agreement rate at or above which the expert moves up one tier |
 | `CALIBRATION_DEMOTE_AT` | 0.6 | Agreement rate at or below which the expert moves down one tier |
+| `CONSENSUS_TOLERANCE` | 1.0 | Weighted-score spread a k-grader task may show before it needs adjudication |
+| `CONSENSUS_OUTVOTED_PAYOUT` | partial | Payout rule for outvoted graders: `full`, `partial` or `none` |
+| `CONSENSUS_OUTVOTED_RATE` | 0.5 | Fraction of the card rate paid under the `partial` rule |
 | `DELIVERY_S3_BUCKET` | empty | When set, exports go to S3; otherwise `DELIVERY_DIR` |
 | `AWS_ENDPOINT_URL` | empty | Set for LocalStack |
 
 ## Testing
 
-`make test` runs 48 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
+`make test` runs 52 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
 
 ## Releases
 
 | Version | Highlights |
 | --- | --- |
+| 4.0.0 | Consensus over k graders: agreement inside the tolerance picks the delivered grade, disagreement opens an adjudication queue for a senior reviewer, outvoted graders are paid by a configurable rule |
 | 3.0.0 | Expert calibration: rolling agreement with reviewers and golden answers, tier promotion and demotion with a hysteresis band, routing follows the live tier |
 | 2.0.0 | Immutable rubric versions: publish endpoint migrates queued tasks, claimed tasks stay pinned, grades and analytics carry the version |
 | 1.0.0 | Baseline: tag routing with locking and leases, rubrics, attention checks, payouts, analytics, checksummed deliveries, Terraform |

@@ -34,6 +34,14 @@ Two kinds of agreement signal exist for an expert: a reviewer decision on one of
 
 Routing and direct claims read `experts.tier` on every request, and payouts copy the tier at approval time, so a tier move takes effect on the next claim and the next approval.
 
+## Consensus and adjudication
+
+A task with `required_grades >= 2` opens a consensus round the moment its last required grade lands. `consensus.evaluate` takes the spread of the weighted scores, `max - min`, and compares it with `CONSENSUS_TOLERANCE`. Inside the tolerance the round is `agreed` and the delivered grade is the one closest to the mean, ties going to the earliest submission. Outside it the round is `adjudicating` and the task moves to the `adjudication` status, which keeps it out of the routing queue and out of the unreviewed grade list.
+
+While a task is waiting for its remaining graders or for an adjudicator, `POST /reviews` returns 409, so a grade is never reviewed on a task a senior reviewer is about to decide. `POST /adjudications/{task_id}` requires the `adjudications:write` scope, which only the `senior_reviewer` role and admins hold. The decision writes an approval for the chosen grade and a rejection reading `outvoted in adjudication` for every other one, so the same reviews that feed calibration also carry the adjudicator's verdict.
+
+Payouts follow from that: the delivered grade is paid the card rate, and the outvoted grades are paid according to `CONSENSUS_OUTVOTED_PAYOUT`, which is `full` (the card rate), `partial` (`CONSENSUS_OUTVOTED_RATE` of it, rounded to whole cents) or `none` (no payout row at all). The delivery export joins on the consensus row and emits only the delivered grade for a consensus task, so a task graded by three experts contributes one dataset row, not three, and that row carries the round status, the grader count and the spread.
+
 ## Payouts and the ledger
 
 Approving a grade creates exactly one payout (unique on `grade_id` and on `(task_id, expert_id)`). The amount comes from the expert's `task_rate_cents` override if set, otherwise from `rate_cards(tier, task_type)`, falling back to `(tier, 'default')`. Tier and task type are copied onto the payout so later rate changes do not rewrite history.
