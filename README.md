@@ -91,6 +91,7 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `admin`; each role 
 | POST | `/experts/{id}/api-key` | experts:write | Issue an expert key |
 | GET | `/experts/me` | experts:self | Caller's expert profile |
 | GET | `/experts/{id}/attention` | tasks:read | Lifetime and rolling attention pass rate |
+| GET | `/experts/{id}/calibration` | tasks:read | Rolling agreement score, band settings and tier change history |
 | PATCH | `/experts/{id}/status` | experts:write | Pause, reinstate (releases withheld payouts) |
 | POST | `/rubrics` | rubrics:write | Versioned rubric with weighted, scaled criteria |
 | POST | `/rubrics/{id}/versions` | rubrics:write | Publish an immutable new version; queued tasks move to it, claimed tasks stay pinned |
@@ -121,7 +122,8 @@ Experts only ever see `TaskExpertView`: prompt, responses, rubric, deadline and 
 
 ## Data model
 
-- `experts`: name, `tags[]` (GIN indexed), tier, optional per-task rate override, status, `served_count`.
+- `experts`: name, `tags[]` (GIN indexed), tier, optional per-task rate override, status, `served_count`, `calibration_score` and `calibration_samples`.
+- `tier_changes`: one row per automatic promotion or demotion with the score and sample count that triggered it.
 - `rubrics` and `rubric_criteria`: immutable versions per name; a superseded version records `superseded_at` and `superseded_by_id`. Each criterion has key, weight, scale and position.
 - `rate_cards`: `(tier, task_type) -> rate_cents`, with a `default` task type fallback.
 - `tasks`: prompt, `responses` (JSONB), `required_tags[]`, task type, `min_tier`, priority, deadline, `required_grades`, `seq` for FIFO tiebreak, lease columns, `rubric_id` (follows the newest version while queued) and `pinned_rubric_id` (fixed at claim), `is_attention_check` and hidden `expected_scores`.
@@ -154,17 +156,22 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 | `ATTENTION_MIN_CHECKS` | 3 | Checks required before the guard can trip |
 | `ATTENTION_THRESHOLD` | 0.7 | Rolling pass rate below which the expert is paused |
 | `ATTENTION_TOLERANCE` | 1.0 | Max per-criterion deviation from the expected score |
+| `CALIBRATION_WINDOW` | 20 | Rolling window of agreement signals (reviews and golden checks) per expert |
+| `CALIBRATION_MIN_SAMPLES` | 5 | Signals required before a tier can move |
+| `CALIBRATION_PROMOTE_AT` | 0.9 | Agreement rate at or above which the expert moves up one tier |
+| `CALIBRATION_DEMOTE_AT` | 0.6 | Agreement rate at or below which the expert moves down one tier |
 | `DELIVERY_S3_BUCKET` | empty | When set, exports go to S3; otherwise `DELIVERY_DIR` |
 | `AWS_ENDPOINT_URL` | empty | Set for LocalStack |
 
 ## Testing
 
-`make test` runs 44 tests: tag and priority routing, rubric version publishing and pinning, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
+`make test` runs 48 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
 
 ## Releases
 
 | Version | Highlights |
 | --- | --- |
+| 3.0.0 | Expert calibration: rolling agreement with reviewers and golden answers, tier promotion and demotion with a hysteresis band, routing follows the live tier |
 | 2.0.0 | Immutable rubric versions: publish endpoint migrates queued tasks, claimed tasks stay pinned, grades and analytics carry the version |
 | 1.0.0 | Baseline: tag routing with locking and leases, rubrics, attention checks, payouts, analytics, checksummed deliveries, Terraform |
 

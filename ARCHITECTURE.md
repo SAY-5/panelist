@@ -28,6 +28,12 @@ Serving is deterministic per expert: with fraction `f`, every `round(1/f)`-th se
 
 On submission the grade is compared criterion by criterion with `expected_scores`; a check passes when the largest deviation is within `ATTENTION_TOLERANCE`. The result is written to `attention_results`. The rolling pass rate over the last `ATTENTION_WINDOW` results is computed after every failed check; if at least `ATTENTION_MIN_CHECKS` exist and the rate is below `ATTENTION_THRESHOLD`, the expert is set to `paused`, all of their `pending` payouts become `withheld`, and further claims return 423. New approvals for a paused expert are created as `withheld`. An admin reinstatement (`PATCH /experts/{id}/status` to `active`) releases withheld payouts back to `pending`.
 
+## Calibration and tiers
+
+Two kinds of agreement signal exist for an expert: a reviewer decision on one of their grades (approve agrees, reject disagrees) and a golden check result (pass agrees, fail disagrees). `calibration.update` runs after every review and every golden check. It merges the newest signals from `reviews` and `attention_results`, keeps the last `CALIBRATION_WINDOW`, stores the agreement rate and sample count on the expert, and, once `CALIBRATION_MIN_SAMPLES` signals exist, moves the tier one step: up when the rate is at or above `CALIBRATION_PROMOTE_AT`, down when it is at or below `CALIBRATION_DEMOTE_AT`. Rates between the two edges leave the tier alone. That gap is the hysteresis: an expert promoted at 1.0 who then takes one rejection sits at 0.75 and stays put, and one who was demoted at 0.5 needs to climb back to the promote edge, not merely above the demote edge, to return. Every move writes a `tier_changes` row and an audit event.
+
+Routing and direct claims read `experts.tier` on every request, and payouts copy the tier at approval time, so a tier move takes effect on the next claim and the next approval.
+
 ## Payouts and the ledger
 
 Approving a grade creates exactly one payout (unique on `grade_id` and on `(task_id, expert_id)`). The amount comes from the expert's `task_rate_cents` override if set, otherwise from `rate_cards(tier, task_type)`, falling back to `(tier, 'default')`. Tier and task type are copied onto the payout so later rate changes do not rewrite history.

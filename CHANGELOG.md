@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.0
+
+Expert calibration and automatic tiering. Every reviewer decision and every golden check result is an agreement signal; the rolling rate over the last `CALIBRATION_WINDOW` signals is stored on the expert and exposed at `GET /experts/{id}/calibration` with the tier change history. Once `CALIBRATION_MIN_SAMPLES` signals exist, a rate at or above `CALIBRATION_PROMOTE_AT` moves the expert up one tier and a rate at or below `CALIBRATION_DEMOTE_AT` moves them down one; the band in between changes nothing, which keeps an expert from flapping across a single edge. Routing, direct claims and payout rates read the live tier, so a demoted expert stops receiving tasks above their tier immediately. New table `tier_changes`.
+
 ## 2.0.0
 
 Rubric versions are immutable rows. `POST /rubrics/{id}/versions` publishes the next version, moves untouched queued tasks to it and reports how many open tasks still sit on the previous one. A task pins its rubric version at claim time (`tasks.pinned_rubric_id`); grades are validated against and reference the pinned version, so an expert holding a task when a new version lands keeps grading the version they were shown. A grade that names a superseded version is rejected with 409, new tasks cannot target a superseded version, and a version can only be published from the current one. Criterion analytics and delivery rows carry the rubric version.
