@@ -30,6 +30,8 @@ class ExpertOut(ORMModel):
     hourly_rate_cents: int | None
     status: ExpertStatus
     served_count: int
+    calibration_score: float | None = None
+    calibration_samples: int = 0
     created_at: datetime
 
 
@@ -273,6 +275,26 @@ class AttentionSummary(BaseModel):
     rolling_window: int
     rolling_pass_rate: float | None
     paused: bool
+
+
+class TierChangeOut(ORMModel):
+    from_tier: Tier
+    to_tier: Tier
+    score: float
+    samples: int
+    created_at: datetime
+
+
+class CalibrationOut(BaseModel):
+    expert_id: uuid.UUID
+    tier: Tier
+    score: float | None
+    samples: int
+    window: int
+    min_samples: int
+    promote_at: float
+    demote_at: float
+    changes: list[TierChangeOut]
 
 
 # Analytics

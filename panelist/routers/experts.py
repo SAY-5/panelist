@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 
 from panelist import schemas
 from panelist.auth import Principal, current_expert, issue_key, require_scopes
+from panelist.config import get_settings
 from panelist.db import get_db
 from panelist.models import Expert, ExpertStatus, Role
-from panelist.services import attention, audit, payouts
+from panelist.services import attention, audit, calibration, payouts
 
 router = APIRouter(prefix="/experts", tags=["experts"])
 
@@ -79,6 +80,29 @@ def attention_summary(
         rolling_window=window_n,
         rolling_pass_rate=rate,
         paused=expert.status == ExpertStatus.paused,
+    )
+
+
+@router.get("/{expert_id}/calibration", response_model=schemas.CalibrationOut)
+def calibration_summary(
+    expert_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _: Principal = Depends(require_scopes("tasks:read")),
+):
+    expert = db.get(Expert, expert_id)
+    if expert is None:
+        raise HTTPException(404, "expert not found")
+    settings = get_settings()
+    return schemas.CalibrationOut(
+        expert_id=expert.id,
+        tier=expert.tier,
+        score=expert.calibration_score,
+        samples=expert.calibration_samples,
+        window=settings.calibration_window,
+        min_samples=settings.calibration_min_samples,
+        promote_at=settings.calibration_promote_at,
+        demote_at=settings.calibration_demote_at,
+        changes=calibration.history(db, expert.id),
     )
 
 

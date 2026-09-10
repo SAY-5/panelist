@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     attention_threshold: float = 0.7
     attention_tolerance: float = 1.0
 
+    # Calibration and tiers
+    calibration_window: int = 20
+    calibration_min_samples: int = 5
+    calibration_promote_at: float = 0.9
+    calibration_demote_at: float = 0.6
+
     # Data delivery
     delivery_dir: str = "./deliveries"
     delivery_s3_bucket: str = ""

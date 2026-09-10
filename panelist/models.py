@@ -83,9 +83,26 @@ class Expert(Base):
         Enum(ExpertStatus, name="expert_status"), default=ExpertStatus.active
     )
     served_count: Mapped[int] = mapped_column(Integer, default=0)
+    calibration_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    calibration_samples: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    tier_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (Index("ix_experts_tags", "tags", postgresql_using="gin"),)
+
+
+class TierChange(Base):
+    __tablename__ = "tier_changes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    expert_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("experts.id"))
+    from_tier: Mapped[Tier] = mapped_column(Enum(Tier, name="tier"))
+    to_tier: Mapped[Tier] = mapped_column(Enum(Tier, name="tier"))
+    score: Mapped[float] = mapped_column(Float)
+    samples: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_tier_changes_expert_created", "expert_id", "created_at"),)
 
 
 class Rubric(Base):

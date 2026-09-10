@@ -14,7 +14,7 @@ from panelist.models import (
     Task,
     TaskStatus,
 )
-from panelist.services import attention, audit, payouts
+from panelist.services import attention, audit, calibration, payouts
 
 
 class GradingError(Exception):
@@ -84,8 +84,10 @@ def submit(
     audit.record(db, f"expert:{expert.id}", "grade.submitted", "grade", grade.id)
 
     result = attention.evaluate(db, task, grade)
-    if result is not None and not result.passed:
-        attention.enforce(db, expert)
+    if result is not None:
+        if not result.passed:
+            attention.enforce(db, expert)
+        calibration.update(db, expert)
     return grade
 
 
@@ -117,4 +119,5 @@ def review(db: Session, reviewer_key_id, grade_id, decision: ReviewDecision, rea
         elif task.status != TaskStatus.approved:
             task.status = TaskStatus.rejected
     audit.record(db, actor, f"grade.{decision.value}", "grade", grade.id, {"reason": reason})
+    calibration.update(db, grade.expert, actor)
     return rec, payout
