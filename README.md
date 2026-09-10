@@ -57,25 +57,35 @@ PANELIST DEMO SUMMARY
 ========================================================================
 experts: 40  tasks: 500 (golden: 50)  seed: 7
 config: attention fraction 0.2, window 10, min checks 2, threshold 0.7, lease 3s
-tasks routed by tag (658 claims): biology=119, finance=93, law=88, math=92, medicine=79, python=66, security=60, writing=61
+tasks routed by tag (651 claims): biology=111, finance=95, law=89, math=86, medicine=82, python=65, security=59, writing=64
 tag mismatches: 0
 double-assignment attempts blocked: 40/40  (concurrent first claims: 40, unique: 40)
 expired leases reclaimed: 2 (admin sweep: 0)
-attention checks served: 127  failed: 4
+attention checks served: 120  failed: 4
 experts paused: 2 ['expert-04', 'expert-18']
-grades stored: 658  approved: 654  rejected: 4
-task status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'approved': 449, 'rejected': 1}
-payouts created: 654  statement 2026-09-A: 640 payouts, $3,236.50 to 38 experts
-payout ledger: {'pending': 0, 'withheld': 4800, 'paid': 323650}  withheld: $48.00
-inter-rater agreement: 81 multi-graded tasks, 324 score pairs, mean abs diff 0.574, exact 49.1%, within one 94.4%
-criterion means: accuracy=3.66, completeness=3.66, clarity=3.67, safety=3.64
-delivery v1: 529 rows, 360,618 bytes, sha256 221a22efe5ce0e186309f0b3e5ccaebfedef5f7f12b67995ca0d39491b62dff0
-delivery location: s3://panelist-deliveries/deliveries/panelist-grades-v1-221a22efe5ce.jsonl  (s3 (http://localhost:4569))
-grading wall time: 13.3s  claim latency over 736 claims: p50 210.6ms  p95 521.3ms
+grades stored: 651  approved: 645  rejected: 4
+tier moves: 47 (47 up, 0 down)  experts by tier: junior=2, senior=0, lead=38
+adjudications: 1 resolved by the senior reviewer, 1 outvoted grades paid at partial (0.5)
+task status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 448, 'rejected': 2}
+payouts created: 647  statement 2026-09-A: 633 payouts, $5,036.00 to 38 experts
+payout ledger: {'pending': 0, 'withheld': 4500, 'paid': 503600}  withheld: $45.00
+inter-rater agreement: 81 multi-graded tasks, 324 score pairs, mean abs diff 0.515, exact 53.4%, within one 95.1%
+criterion means: accuracy=3.67, completeness=3.61, clarity=3.65, safety=3.65
+delivery v1: 448 rows, 316,403 bytes, sha256 131380265e20b1ea87504aefd7b243d4a0ae80000765019d65c021d5c85e6654
+delivery location: s3://panelist-deliveries/deliveries/panelist-grades-v1-131380265e20.jsonl  (s3 (http://localhost:4569))
+grading wall time: 15.1s  claim latency over 729 claims: p50 250.8ms  p95 339.7ms
+------------------------------------------------------------------------
+OPS OVERVIEW (GET /ops/overview)
+queue depth by tag: biology=12, finance=4, law=8, math=9, medicine=12, python=5, security=8, writing=12
+tasks by status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 448, 'rejected': 2}  expired leases: 0
+paused experts: 2 ['expert-04', 'expert-18']  adjudication backlog: 0
+period 2026-09-A: 0 payouts ($0.00) not yet in a statement, $45.00 withheld
+last delivery: v1, 448 rows, 2026-09-10T09:23:24.500719Z
+tick: reclaimed 0, scored 40 experts, 0 tier moves
 ========================================================================
 ```
 
-Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. The two paused experts are the careless ones; their 14 approved grades are the $48.00 withheld from the statement. Claim latency is measured client side with 40 threads hammering a single in-process uvicorn worker. The demo raises the served attention fraction to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
+Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. The two paused experts are the careless ones; their 14 approved grades are the $45.00 withheld from the statement. The delivery carries 448 rows for 448 approved tasks: the 81 multi-graded tasks contribute the one grade their consensus round selected, not both. One task fell outside the consensus tolerance and was settled by the senior reviewer, whose outvoted grader was paid half the card rate under the `partial` rule. Tier moves run one way here because the spot-check reviewer approves 645 of 651 grades, so nearly every expert clears the promote edge; demotion needs a disagreement streak, which the test suite exercises directly. The tick reports nothing to chase because it runs after the statement close, with the adjudication queue already empty. Claim latency is measured client side with 40 threads hammering a single in-process uvicorn worker. The demo raises the served attention fraction to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
 
 ### Browser demo
 
