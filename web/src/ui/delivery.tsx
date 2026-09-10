@@ -169,27 +169,27 @@ export function DeliverySection() {
                   <tr>
                     <td>multi-graded tasks</td>
                     <td className="num">{agreement.multiGradedTasks}</td>
-                    <td className="num">{run ? run.summary.agreement.multiGradedTasks : "–"}</td>
+                    <td className="num">{run ? run.summary.agreement.multiGradedTasks : "..."}</td>
                   </tr>
                   <tr>
                     <td>score pairs</td>
                     <td className="num">{agreement.comparedPairs}</td>
-                    <td className="num">{run ? run.summary.agreement.comparedPairs : "–"}</td>
+                    <td className="num">{run ? run.summary.agreement.comparedPairs : "..."}</td>
                   </tr>
                   <tr>
                     <td>mean absolute difference</td>
                     <td className="num">{agreement.meanAbsDiff === null ? "n/a" : agreement.meanAbsDiff.toFixed(3)}</td>
-                    <td className="num">{run ? (run.summary.agreement.meanAbsDiff ?? 0).toFixed(3) : "–"}</td>
+                    <td className="num">{run ? (run.summary.agreement.meanAbsDiff ?? 0).toFixed(3) : "..."}</td>
                   </tr>
                   <tr>
                     <td>exact</td>
                     <td className="num">{pct(agreement.exactAgreement)}</td>
-                    <td className="num">{run ? pct(run.summary.agreement.exactAgreement) : "–"}</td>
+                    <td className="num">{run ? pct(run.summary.agreement.exactAgreement) : "..."}</td>
                   </tr>
                   <tr>
                     <td>within one</td>
                     <td className="num">{pct(agreement.withinOne)}</td>
-                    <td className="num">{run ? pct(run.summary.agreement.withinOne) : "–"}</td>
+                    <td className="num">{run ? pct(run.summary.agreement.withinOne) : "..."}</td>
                   </tr>
                 </tbody>
               </table>

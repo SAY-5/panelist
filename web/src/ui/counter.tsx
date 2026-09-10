@@ -51,7 +51,7 @@ export function Counter({ label, target, format, spoken, note, accent = false }:
     <div className="counter">
       <span className="counter-label">{label}</span>
       <span className={`counter-value${accent ? " is-accent" : ""}`} aria-hidden="true">
-        {target === null ? "––" : fmt(live)}
+        {target === null ? ".." : fmt(live)}
       </span>
       <span className="sr">{settled ? `${label}: ${spoken ?? fmt(target)}` : ""}</span>
       {note ? <span className="counter-note">{note}</span> : null}

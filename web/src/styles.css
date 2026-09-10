@@ -657,7 +657,7 @@ pre {
 
 .race-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 13ch auto 1fr;
   gap: 10px;
   align-items: center;
   padding: 7px 0;
@@ -677,7 +677,6 @@ pre {
 .race-detail {
   color: var(--ink-3);
   font-size: 11px;
-  text-align: right;
 }
 
 /* ---------- gauge ----------------------------------------------------- */
@@ -828,7 +827,7 @@ pre {
 
 .log-row {
   display: grid;
-  grid-template-columns: 7ch 10ch 1fr;
+  grid-template-columns: 5.5ch 13ch 1fr;
   gap: 10px;
   padding: 5px 0;
   border-bottom: 1px solid var(--rule);
@@ -843,6 +842,7 @@ pre {
 
 .log-kind {
   font-size: 10px;
+  hyphens: none;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-3);

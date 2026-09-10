@@ -33,7 +33,9 @@ function describe(e: DemoEvent): string {
     case "attention":
       return `${e.expert} failed check ${e.ref}, max deviation ${e.maxDeviation.toFixed(0)}, rolling ${pct(e.rate)} over ${e.checks}`;
     case "paused":
-      return `${e.expert} paused at ${pct(e.rate)} over ${e.checks} checks, ${e.withheld} payouts withheld`;
+      return e.withheld > 0
+        ? `${e.expert} paused at ${pct(e.rate)} over ${e.checks} checks, ${e.withheld} pending payouts withheld`
+        : `${e.expert} paused at ${pct(e.rate)} over ${e.checks} checks, before any payout existed; later approvals are withheld on creation`;
     case "grade-conflict":
       return `${e.expert} lost ${e.ref}: the lease had already been reclaimed`;
     case "sweep":

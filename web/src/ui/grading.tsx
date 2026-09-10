@@ -231,6 +231,33 @@ export function GradingSection() {
                 Serving a golden check is an operator action here so the guard can be tripped in two
                 clicks. In the service it happens on its own, every fifth serve.
               </p>
+              <div className="scroll-x section-gap-sm">
+                <table>
+                  <caption>Rubric: {rubric?.name} v{rubric?.version}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">criterion</th>
+                      <th scope="col" className="num">
+                        weight
+                      </th>
+                      <th scope="col" className="num">
+                        scale
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rubric?.criteria.map((c) => (
+                      <tr key={c.key}>
+                        <td>{c.label}</td>
+                        <td className="num">{c.weight.toFixed(1)}</td>
+                        <td className="num">
+                          {c.scaleMin} to {c.scaleMax}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
           <p className="card-note" role="status">
