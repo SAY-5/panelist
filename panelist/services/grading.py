@@ -14,7 +14,7 @@ from panelist.models import (
     Task,
     TaskStatus,
 )
-from panelist.services import attention, audit, calibration, payouts
+from panelist.services import attention, audit, calibration, consensus, payouts
 
 
 class GradingError(Exception):
@@ -81,6 +81,7 @@ def submit(
         task.status = TaskStatus.queued
     else:
         task.status = TaskStatus.submitted
+        consensus.evaluate(db, task)
     audit.record(db, f"expert:{expert.id}", "grade.submitted", "grade", grade.id)
 
     result = attention.evaluate(db, task, grade)
@@ -98,12 +99,22 @@ def _pin_conflict(given: Rubric | None, pinned: Rubric) -> str:
     return f"rubric version {given.version} is {state}; task is pinned to version {pinned.version}"
 
 
+def _reject_if_consensus_pending(task: Task) -> None:
+    if task.is_attention_check or task.required_grades < 2:
+        return
+    if task.grades_received < task.required_grades:
+        raise GradingError(409, f"task is waiting for {task.required_grades} grades")
+    if task.status == TaskStatus.adjudication:
+        raise GradingError(409, "task is awaiting adjudication")
+
+
 def review(db: Session, reviewer_key_id, grade_id, decision: ReviewDecision, reason, actor: str):
     grade = db.scalar(select(Grade).where(Grade.id == grade_id).with_for_update())
     if grade is None:
         raise GradingError(404, "grade not found")
     if grade.review is not None:
         raise GradingError(409, "grade already reviewed")
+    _reject_if_consensus_pending(grade.task)
     rec = Review(
         grade_id=grade.id, reviewer_key_id=reviewer_key_id, decision=decision, reason=reason
     )

@@ -49,8 +49,15 @@ class TaskStatus(enum.StrEnum):
     queued = "queued"
     assigned = "assigned"
     submitted = "submitted"
+    adjudication = "adjudication"
     approved = "approved"
     rejected = "rejected"
+
+
+class ConsensusStatus(enum.StrEnum):
+    agreed = "agreed"
+    adjudicating = "adjudicating"
+    adjudicated = "adjudicated"
 
 
 class ReviewDecision(enum.StrEnum):
@@ -67,6 +74,7 @@ class PayoutStatus(enum.StrEnum):
 class Role(enum.StrEnum):
     expert = "expert"
     reviewer = "reviewer"
+    senior_reviewer = "senior_reviewer"
     admin = "admin"
 
 
@@ -247,6 +255,30 @@ class Review(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     grade: Mapped[Grade] = relationship(back_populates="review")
+
+
+class Consensus(Base):
+    __tablename__ = "consensus"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"), unique=True)
+    status: Mapped[ConsensusStatus] = mapped_column(Enum(ConsensusStatus, name="consensus_status"))
+    grade_count: Mapped[int] = mapped_column(Integer)
+    spread: Mapped[float] = mapped_column(Float)
+    tolerance: Mapped[float] = mapped_column(Float)
+    delivered_grade_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("grades.id"), nullable=True
+    )
+    adjudicator_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("api_keys.id"), nullable=True
+    )
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    task: Mapped[Task] = relationship(lazy="selectin")
+
+    __table_args__ = (Index("ix_consensus_status_created", "status", "created_at"),)
 
 
 class PayoutPeriod(Base):

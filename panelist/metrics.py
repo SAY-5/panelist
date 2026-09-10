@@ -19,6 +19,7 @@ EXPERTS_PAUSED = Counter("panelist_experts_paused_total", "Experts paused by att
 PAYOUTS = Counter("panelist_payouts_total", "Payouts created", ["status"])
 PAYOUT_CENTS = Counter("panelist_payout_cents_total", "Payout amount created", ["status"])
 GRADES = Counter("panelist_grades_total", "Grades submitted")
+CONSENSUS = Counter("panelist_consensus_total", "Consensus rounds by outcome", ["outcome"])
 PAYOUT_BALANCE = Gauge("panelist_payout_balance_cents", "Payout ledger balance", ["status"])
 
 

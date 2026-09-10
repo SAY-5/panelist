@@ -1,12 +1,13 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from panelist import schemas
 from panelist.auth import Principal, current_expert, require_scopes
 from panelist.db import get_db
-from panelist.models import Expert, Grade
+from panelist.models import Expert, Grade, Review, Task, TaskStatus
 from panelist.services import grading
 
 router = APIRouter(tags=["grades"])
@@ -53,14 +54,15 @@ def list_unreviewed(
     db: Session = Depends(get_db),
     _: Principal = Depends(require_scopes("grades:read")),
 ):
-    from sqlalchemy import select
-
-    from panelist.models import Review
-
     stmt = (
         select(Grade)
         .outerjoin(Review, Review.grade_id == Grade.id)
-        .where(Review.id.is_(None))
+        .join(Task, Task.id == Grade.task_id)
+        .where(
+            Review.id.is_(None),
+            Task.status != TaskStatus.adjudication,
+            Task.grades_received >= Task.required_grades,
+        )
         .order_by(Grade.submitted_at)
         .limit(min(limit, 1000))
     )

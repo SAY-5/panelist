@@ -3,7 +3,15 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from panelist.models import ExpertStatus, PayoutStatus, ReviewDecision, Role, TaskStatus, Tier
+from panelist.models import (
+    ConsensusStatus,
+    ExpertStatus,
+    PayoutStatus,
+    ReviewDecision,
+    Role,
+    TaskStatus,
+    Tier,
+)
 
 
 class ORMModel(BaseModel):
@@ -218,6 +226,51 @@ class ReviewOut(ORMModel):
     created_at: datetime
     payout_id: uuid.UUID | None = None
     payout_status: PayoutStatus | None = None
+
+
+# Consensus and adjudication
+
+
+class ConsensusGradeOut(BaseModel):
+    grade_id: uuid.UUID
+    expert_id: uuid.UUID
+    expert_name: str
+    weighted_score: float
+    scores: dict
+    rationale: str
+
+
+class AdjudicationOut(BaseModel):
+    task_id: uuid.UUID
+    external_ref: str | None
+    prompt: str
+    status: ConsensusStatus
+    grade_count: int
+    spread: float
+    tolerance: float
+    opened_at: datetime
+    grades: list[ConsensusGradeOut]
+
+
+class AdjudicationDecision(BaseModel):
+    delivered_grade_id: uuid.UUID
+    reason: str = Field(min_length=1)
+
+
+class OutvotedOut(BaseModel):
+    grade_id: uuid.UUID
+    expert_id: uuid.UUID
+    payout_id: uuid.UUID | None
+    amount_cents: int | None
+
+
+class AdjudicationResult(BaseModel):
+    task_id: uuid.UUID
+    status: ConsensusStatus
+    delivered_grade_id: uuid.UUID
+    delivered_amount_cents: int
+    outvoted_rule: str
+    outvoted: list[OutvotedOut]
 
 
 # Payouts

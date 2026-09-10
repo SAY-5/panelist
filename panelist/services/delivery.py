@@ -5,24 +5,32 @@ import json
 import os
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from panelist.config import get_settings
-from panelist.models import Delivery, Grade, Review, ReviewDecision, Task
+from panelist.models import Consensus, Delivery, Grade, Review, ReviewDecision, Task
 from panelist.services import audit
 
 
 def _rows(db: Session):
+    """One row per delivered grade: consensus tasks deliver only the grade that was chosen."""
     grades = db.scalars(
         select(Grade)
         .join(Review, Review.grade_id == Grade.id)
         .join(Task, Task.id == Grade.task_id)
-        .where(Review.decision == ReviewDecision.approve, Task.is_attention_check.is_(False))
+        .outerjoin(Consensus, Consensus.task_id == Task.id)
+        .where(
+            Review.decision == ReviewDecision.approve,
+            Task.is_attention_check.is_(False),
+            or_(Consensus.id.is_(None), Consensus.delivered_grade_id == Grade.id),
+        )
         .order_by(Task.seq, Grade.expert_id)
     ).all()
+    rounds = {c.task_id: c for c in db.scalars(select(Consensus)).all()}
     for g in grades:
         task = g.task
+        round_ = rounds.get(task.id)
         yield {
             "task_id": str(task.id),
             "external_ref": task.external_ref,
@@ -44,6 +52,13 @@ def _rows(db: Session):
             "weighted_score": g.weighted_score,
             "rationale": g.rationale,
             "time_spent_seconds": g.time_spent_seconds,
+            "consensus": None
+            if round_ is None
+            else {
+                "status": round_.status.value,
+                "graders": round_.grade_count,
+                "spread": round_.spread,
+            },
         }
 
 

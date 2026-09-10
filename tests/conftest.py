@@ -90,3 +90,11 @@ def reviewer_key(db: Session) -> str:
     db.add(ApiKey(key_hash=hash_key(raw), role=Role.reviewer, label="test-reviewer"))
     db.commit()
     return raw
+
+
+@pytest.fixture
+def senior_key(db: Session) -> str:
+    raw = "pk_senior_test"
+    db.add(ApiKey(key_hash=hash_key(raw), role=Role.senior_reviewer, label="test-senior"))
+    db.commit()
+    return raw

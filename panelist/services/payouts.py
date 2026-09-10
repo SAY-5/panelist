@@ -39,12 +39,14 @@ def rate_for(db: Session, expert: Expert, task_type: str) -> int:
     return card.rate_cents
 
 
-def create_for_grade(db: Session, grade: Grade, task: Task, actor: str) -> Payout:
+def create_for_grade(
+    db: Session, grade: Grade, task: Task, actor: str, fraction: float = 1.0
+) -> Payout:
     expert = grade.expert
     existing = db.scalar(select(Payout).where(Payout.grade_id == grade.id))
     if existing is not None:
         return existing
-    amount = rate_for(db, expert, task.task_type)
+    amount = round(rate_for(db, expert, task.task_type) * fraction)
     status = PayoutStatus.withheld if expert.status == ExpertStatus.paused else PayoutStatus.pending
     payout = Payout(
         expert_id=expert.id,

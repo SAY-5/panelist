@@ -10,7 +10,17 @@ from panelist.config import get_settings
 from panelist.db import get_db, get_engine
 from panelist.logging import configure_logging, get_logger
 from panelist.metrics import refresh_gauges
-from panelist.routers import admin, analytics, deliveries, experts, grades, payouts, rubrics, tasks
+from panelist.routers import (
+    adjudications,
+    admin,
+    analytics,
+    deliveries,
+    experts,
+    grades,
+    payouts,
+    rubrics,
+    tasks,
+)
 
 log = get_logger("panelist")
 
@@ -32,7 +42,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-for r in (experts, rubrics, tasks, grades, payouts, analytics, deliveries, admin):
+for r in (
+    experts,
+    rubrics,
+    tasks,
+    grades,
+    adjudications,
+    payouts,
+    analytics,
+    deliveries,
+    admin,
+):
     app.include_router(r.router)
 
 
