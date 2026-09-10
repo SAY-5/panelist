@@ -271,6 +271,7 @@ a:hover {
 .section {
   padding: 56px 0;
   border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 72px;
 }
 
 .section-head {
@@ -949,6 +950,7 @@ pre {
 
   .section {
     padding: 40px 0;
+    scroll-margin-top: 116px;
   }
 
   .section-head {
