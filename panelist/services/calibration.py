@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from panelist.config import get_settings
+from panelist.metrics import TIER_CHANGES
 from panelist.models import (
     TIER_RANK,
     AttentionResult,
@@ -70,10 +71,12 @@ def update(db: Session, expert: Expert, actor: str = "system") -> TierChange | N
     change = TierChange(
         expert_id=expert.id, from_tier=expert.tier, to_tier=target, score=rate, samples=samples
     )
+    direction = "up" if TIER_RANK[target] > TIER_RANK[expert.tier] else "down"
     expert.tier = target
     expert.tier_updated_at = datetime.now(UTC)
     db.add(change)
     db.flush()
+    TIER_CHANGES.labels(direction=direction).inc()
     audit.record(
         db,
         actor,

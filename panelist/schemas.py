@@ -401,3 +401,32 @@ class DeliveryOut(ORMModel):
     row_count: int
     size_bytes: int
     created_at: datetime
+
+
+# Operations
+
+
+class PausedExpertOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    tier: Tier
+    calibration_score: float | None
+
+
+class PeriodStatusOut(BaseModel):
+    last_label: str | None
+    closed_at: datetime | None
+    unbilled_payouts: int
+    unbilled_cents: int
+    withheld_cents: int
+
+
+class OpsOverview(BaseModel):
+    generated_at: datetime
+    queued_by_tag: dict[str, int]
+    tasks_by_status: dict[str, int]
+    expired_leases: int
+    paused_experts: list[PausedExpertOut]
+    adjudication_backlog: int
+    period: PeriodStatusOut
+    last_delivery: DeliveryOut | None

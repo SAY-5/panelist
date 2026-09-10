@@ -1,7 +1,17 @@
 from prometheus_client import Counter, Gauge, Histogram
 from sqlalchemy import func, select
 
-from panelist.models import PayoutStatus, Task, TaskStatus
+from panelist.models import (
+    Consensus,
+    ConsensusStatus,
+    Expert,
+    ExpertStatus,
+    Payout,
+    PayoutStatus,
+    Task,
+    TaskStatus,
+    Tier,
+)
 
 QUEUE_DEPTH = Gauge("panelist_queue_depth", "Queued tasks by required tag", ["tag"])
 ASSIGNMENT_LATENCY = Histogram(
@@ -20,7 +30,11 @@ PAYOUTS = Counter("panelist_payouts_total", "Payouts created", ["status"])
 PAYOUT_CENTS = Counter("panelist_payout_cents_total", "Payout amount created", ["status"])
 GRADES = Counter("panelist_grades_total", "Grades submitted")
 CONSENSUS = Counter("panelist_consensus_total", "Consensus rounds by outcome", ["outcome"])
+TIER_CHANGES = Counter("panelist_tier_changes_total", "Automatic tier moves", ["direction"])
 PAYOUT_BALANCE = Gauge("panelist_payout_balance_cents", "Payout ledger balance", ["status"])
+ADJUDICATION_BACKLOG = Gauge("panelist_adjudication_backlog", "Tasks waiting for adjudication")
+PAUSED_EXPERTS = Gauge("panelist_paused_experts", "Experts currently paused")
+EXPERTS_BY_TIER = Gauge("panelist_experts_by_tier", "Experts by current tier", ["tier"])
 
 
 def refresh_gauges(db) -> None:
@@ -37,8 +51,6 @@ def refresh_gauges(db) -> None:
         if labels[0] not in seen:
             QUEUE_DEPTH.labels(tag=labels[0]).set(0)
 
-    from panelist.models import Payout
-
     balances = db.execute(
         select(Payout.status, func.coalesce(func.sum(Payout.amount_cents), 0)).group_by(
             Payout.status
@@ -48,3 +60,18 @@ def refresh_gauges(db) -> None:
         PAYOUT_BALANCE.labels(status=status.value).set(0)
     for status, total in balances:
         PAYOUT_BALANCE.labels(status=status.value).set(int(total))
+
+    ADJUDICATION_BACKLOG.set(
+        db.scalar(
+            select(func.count(Consensus.id)).where(Consensus.status == ConsensusStatus.adjudicating)
+        )
+        or 0
+    )
+    PAUSED_EXPERTS.set(
+        db.scalar(select(func.count(Expert.id)).where(Expert.status == ExpertStatus.paused)) or 0
+    )
+    by_tier = dict(
+        db.execute(select(Expert.tier, func.count(Expert.id)).group_by(Expert.tier)).all()
+    )
+    for tier in Tier:
+        EXPERTS_BY_TIER.labels(tier=tier.value).set(int(by_tier.get(tier, 0)))

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from panelist.config import get_settings
@@ -94,10 +94,11 @@ def pending(db: Session, limit: int = 200) -> list[Consensus]:
 
 
 def backlog(db: Session) -> int:
-    return len(
-        db.scalars(
-            select(Consensus.id).where(Consensus.status == ConsensusStatus.adjudicating)
-        ).all()
+    return int(
+        db.scalar(
+            select(func.count(Consensus.id)).where(Consensus.status == ConsensusStatus.adjudicating)
+        )
+        or 0
     )
 
 
