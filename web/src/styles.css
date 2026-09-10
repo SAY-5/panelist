@@ -1015,3 +1015,9 @@ tfoot td {
   font-size: 10.5px;
   color: var(--ink-2);
 }
+
+.run-stats {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
