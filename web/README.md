@@ -15,8 +15,9 @@ backend, no network calls, no Docker.
 npm install
 npm run dev        # vite dev server
 npm run build      # typecheck, then a production build into dist/
-npm run selfcheck  # 54 assertions over the ported rules
+npm run selfcheck  # the port's own assertions, the conformance replay, the stylesheet checks
 npm run typecheck  # tsc --noEmit
+npm run size       # gzipped JS in dist/ against the budget in scripts/size.mjs
 ```
 
 ## Layout

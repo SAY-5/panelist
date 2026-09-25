@@ -1,10 +1,10 @@
-.PHONY: setup lint test migrate demo demo-down tf-validate tf-plan run
+.PHONY: setup lint test migrate demo demo-down tf-validate tf-plan run web-check
 
 COMPOSE := docker compose -f deploy/docker-compose.yml
 DEMO_DB := postgresql+psycopg://panelist:panelist@localhost:5439/panelist
 
 setup:
-	uv sync --extra dev
+	uv sync --locked --extra dev
 
 lint:
 	uv run ruff check .
@@ -33,3 +33,6 @@ tf-validate:
 
 tf-plan:
 	cd deploy/terraform && terraform init -input=false && terraform plan -input=false -var-file=environments/dev.tfvars
+
+web-check:
+	cd web && npm ci && npm run typecheck && npm run selfcheck && npm run build && npm run size

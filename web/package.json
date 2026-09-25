@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
-    "bundle": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "selfcheck": "esbuild src/selfcheck.ts --bundle --platform=node --format=esm --outfile=.selfcheck/selfcheck.mjs --log-level=warning && node .selfcheck/selfcheck.mjs"
+    "selfcheck": "esbuild src/selfcheck.ts --bundle --platform=node --format=esm --outfile=.selfcheck/selfcheck.mjs --log-level=warning && node .selfcheck/selfcheck.mjs",
+    "size": "node scripts/size.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
