@@ -6,9 +6,9 @@ import { resolve } from "node:path";
 import { Clock, EPOCH_MS } from "./sim/clock";
 import { runDemo, seedPlatform, DEFAULT_DEMO } from "./sim/demo";
 import { Platform, ServiceError } from "./sim/platform";
-import { sha256Hex } from "./sim/sha256";
+import { sha256Hex, utf8Length } from "./sim/sha256";
 import { formatSummary } from "./sim/summary";
-import { DEMO_SETTINGS } from "./sim/types";
+import { DEMO_SETTINGS, PayoutStatus, TaskStatus, Tier } from "./sim/types";
 import { buildWorld, CRITERIA } from "./sim/world";
 
 let passed = 0;
@@ -270,7 +270,160 @@ check(
   if (next.ok) platform.review(platform.submitGrade(e, next.task.id, truth({}), "fine", 100).id, "approve");
   const third = platform.exportDelivery();
   check("a new approval changes the checksum and row count", third.checksum !== first.checksum && third.rowCount === first.rowCount + 1);
-  check("jsonl rows use sorted keys and compact separators", platform.buildJsonl().body.split("\n")[0]?.startsWith('{"expert_id":') === true && !platform.buildJsonl().body.includes(": "));
+  check("jsonl rows use sorted keys and compact separators", platform.buildJsonl().body.split("\n")[0]?.startsWith('{"consensus":null,"expert_id":') === true && !platform.buildJsonl().body.includes(": "));
+}
+
+// ----- conformance with the PostgreSQL service -------------------------------
+// tests/test_port_conformance.py runs this scenario through the service and writes
+// tests/fixtures/port_conformance.json; the port must reproduce every recorded outcome.
+interface ConformanceFixture {
+  settings: { lease_seconds: number; attention_fraction: number; attention_window: number; attention_min_checks: number; attention_threshold: number; attention_tolerance: number };
+  rubric: { id: string; name: string; version: number; criteria: { key: string; label: string; weight: number }[] };
+  rate_cards: { tier: Tier; task_type: string; rate_cents: number }[];
+  experts: { id: string; name: string; tags: string[]; tier: Tier }[];
+  tasks: {
+    id: string; external_ref: string; prompt: string; responses: { model: string; text: string }[]; required_tags: string[];
+    task_type: string; min_tier: Tier; priority: number; deadline_hours: number | null; required_grades: number;
+    is_attention_check: boolean; expected_scores: Record<string, number> | null;
+  }[];
+  steps: ConformanceStep[];
+  final: {
+    ledger: { totals_by_status: Record<string, number>; counts_by_status: Record<string, number> };
+    agreement: { multi_graded_tasks: number; compared_pairs: number; mean_abs_diff: number | null; exact_agreement: number | null; within_one: number | null };
+    task_status: Record<string, number>;
+    criterion_means: { key: string; mean: number; stddev: number | null; n: number }[];
+  };
+}
+type ConformanceStep =
+  | { action: "claim"; expert: string; expect: string | number }
+  | { action: "grade"; expert: string; task: string; scores: Record<string, number>; rationale: string; time_spent_seconds: number; expect: { weighted_score: number; attention: { passed: boolean; max_deviation: number } | null; expert_status: string; task_status: string } }
+  | { action: "review"; task: string; expert: string; decision: "approve" | "reject"; reason: string | null; expect: { task_status: string; payout_cents: number | null; payout_status: string | null } }
+  | { action: "close_period"; label: string; expect: { payout_count: number; total_cents: number; expert_count: number } }
+  | { action: "export"; expect: { row_count: number; size_bytes: number; sha256: string } };
+
+{
+  const fx = JSON.parse(readFileSync(resolve(process.cwd(), "..", "tests", "fixtures", "port_conformance.json"), "utf8")) as ConformanceFixture;
+  const clock = new Clock(EPOCH_MS);
+  const st = fx.settings;
+  const platform = new Platform(
+    {
+      leaseSeconds: st.lease_seconds,
+      attentionFraction: st.attention_fraction,
+      attentionWindow: st.attention_window,
+      attentionMinChecks: st.attention_min_checks,
+      attentionThreshold: st.attention_threshold,
+      attentionTolerance: st.attention_tolerance,
+      deliveryBucket: "conformance",
+    },
+    clock,
+    1,
+  );
+  platform.createRubric(fx.rubric.name, fx.rubric.version, fx.rubric.criteria, fx.rubric.id);
+  platform.putRateCards(fx.rate_cards.map((c) => ({ tier: c.tier, taskType: c.task_type, rateCents: c.rate_cents })));
+  for (const e of fx.experts) platform.createExpert({ id: e.id, name: e.name, tags: e.tags, tier: e.tier });
+  platform.createTasks(
+    fx.tasks.map((t) => ({
+      id: t.id,
+      externalRef: t.external_ref,
+      prompt: t.prompt,
+      responses: t.responses,
+      requiredTags: t.required_tags,
+      taskType: t.task_type,
+      minTier: t.min_tier,
+      priority: t.priority,
+      deadline: t.deadline_hours === null ? null : clock.now() + t.deadline_hours * 3_600_000,
+      requiredGrades: t.required_grades,
+      isAttentionCheck: t.is_attention_check,
+      expectedScores: t.expected_scores,
+    })),
+  );
+  const expertNamed = (name: string) => {
+    const e = platform.experts.find((x) => x.name === name);
+    if (!e) throw new Error(`no expert ${name}`);
+    return e;
+  };
+  const taskRef = (ref: string) => {
+    const t = platform.tasks.find((x) => x.externalRef === ref);
+    if (!t) throw new Error(`no task ${ref}`);
+    return t;
+  };
+  const near = (a: number | null, b: number | null): boolean => (a === null || b === null ? a === b : Math.abs(a - b) < 1e-9);
+  fx.steps.forEach((step, i) => {
+    clock.advance(1000);
+    const label = `conformance ${i + 1} ${step.action}`;
+    switch (step.action) {
+      case "claim": {
+        const r = platform.claimNext(expertNamed(step.expert));
+        const got = r.ok ? r.task.externalRef : r.statusCode;
+        check(`${label}: ${step.expert} gets ${String(step.expect)}`, got === step.expect, String(got));
+        break;
+      }
+      case "grade": {
+        const expert = expertNamed(step.expert);
+        const task = taskRef(step.task);
+        const g = platform.submitGrade(expert, task.id, step.scores, step.rationale, step.time_spent_seconds);
+        const att = platform.attentionResults.find((a) => a.gradeId === g.id) ?? null;
+        const attentionOk = att === null ? step.expect.attention === null : step.expect.attention !== null && att.passed === step.expect.attention.passed && near(att.maxDeviation, step.expect.attention.max_deviation);
+        const ok = near(g.weightedScore, step.expect.weighted_score) && expert.status === step.expect.expert_status && task.status === step.expect.task_status && attentionOk;
+        check(`${label}: ${step.expert} on ${step.task}`, ok, `${g.weightedScore} ${expert.status} ${task.status} ${JSON.stringify(att)}`);
+        break;
+      }
+      case "review": {
+        const task = taskRef(step.task);
+        const expert = expertNamed(step.expert);
+        const grade = platform.grades.find((g) => g.taskId === task.id && g.expertId === expert.id);
+        if (!grade) throw new Error(`no grade on ${step.task} by ${step.expert}`);
+        const { payout } = platform.review(grade.id, step.decision, step.reason);
+        const ok = task.status === step.expect.task_status && (payout?.amountCents ?? null) === step.expect.payout_cents && (payout?.status ?? null) === step.expect.payout_status;
+        check(`${label}: ${step.decision} ${step.task} by ${step.expert}`, ok, `${task.status} ${String(payout?.amountCents)} ${String(payout?.status)}`);
+        break;
+      }
+      case "close_period": {
+        const totals = platform.closePeriod(step.label);
+        const ok = totals.payoutCount === step.expect.payout_count && totals.totalCents === step.expect.total_cents && totals.expertCount === step.expect.expert_count;
+        check(`${label}: ${step.label}`, ok, JSON.stringify(totals));
+        break;
+      }
+      case "export": {
+        const { body, count } = platform.buildJsonl();
+        const sha = sha256Hex(body);
+        const ok = count === step.expect.row_count && utf8Length(body) === step.expect.size_bytes && sha === step.expect.sha256;
+        check(`${label}: ${step.expect.row_count} rows, sha256 ${step.expect.sha256.slice(0, 12)}`, ok, `${count} rows, ${utf8Length(body)} bytes, ${sha.slice(0, 12)}`);
+        break;
+      }
+    }
+  });
+  const ledger = platform.ledger();
+  const statuses: PayoutStatus[] = ["pending", "withheld", "paid"];
+  check(
+    "conformance: ledger totals and counts match the service",
+    statuses.every((s) => ledger.totalsByStatus[s] === fx.final.ledger.totals_by_status[s] && ledger.countsByStatus[s] === fx.final.ledger.counts_by_status[s]),
+    JSON.stringify(ledger.totalsByStatus),
+  );
+  const agreement = platform.globalAgreement();
+  const fa = fx.final.agreement;
+  check(
+    "conformance: agreement statistics match the service",
+    agreement.multiGradedTasks === fa.multi_graded_tasks && agreement.comparedPairs === fa.compared_pairs && near(agreement.meanAbsDiff, fa.mean_abs_diff) && near(agreement.exactAgreement, fa.exact_agreement) && near(agreement.withinOne, fa.within_one),
+    JSON.stringify(agreement),
+  );
+  const status = platform.queueSummary();
+  check(
+    "conformance: task status counts match the service",
+    (Object.keys(status) as TaskStatus[]).every((k) => status[k] === fx.final.task_status[k]) && fx.final.task_status["adjudication"] === 0,
+    JSON.stringify(status),
+  );
+  const means = platform.criterionMeans();
+  check(
+    "conformance: criterion means match the service",
+    means.length === fx.final.criterion_means.length &&
+      means.every((m, i) => {
+        const f = fx.final.criterion_means[i];
+        if (f === undefined || f.key !== m.key || f.n !== m.n || !near(m.mean, f.mean)) return false;
+        return m.stddev === null || f.stddev === null ? m.stddev === f.stddev : Math.abs(m.stddev - f.stddev) < 1e-6;
+      }),
+    JSON.stringify(means),
+  );
 }
 
 // ----- stylesheet: contrast and size floors --------------------------------

@@ -1,0 +1,718 @@
+{
+  "experts": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "A",
+      "tags": [
+        "python",
+        "law"
+      ],
+      "tier": "senior"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "name": "B",
+      "tags": [
+        "python"
+      ],
+      "tier": "junior"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "name": "C",
+      "tags": [
+        "law"
+      ],
+      "tier": "junior"
+    }
+  ],
+  "final": {
+    "agreement": {
+      "compared_pairs": 3,
+      "exact_agreement": 0.3333333333333333,
+      "mean_abs_diff": 0.6666666666666666,
+      "multi_graded_tasks": 1,
+      "within_one": 1.0
+    },
+    "criterion_means": [
+      {
+        "key": "accuracy",
+        "mean": 3.8333333333333335,
+        "n": 12,
+        "stddev": 1.2673044646258476
+      },
+      {
+        "key": "clarity",
+        "mean": 3.5833333333333335,
+        "n": 12,
+        "stddev": 1.378954368902449
+      },
+      {
+        "key": "safety",
+        "mean": 3.8333333333333335,
+        "n": 12,
+        "stddev": 1.2673044646258478
+      }
+    ],
+    "ledger": {
+      "counts_by_status": {
+        "paid": 3,
+        "pending": 0,
+        "withheld": 1
+      },
+      "totals_by_status": {
+        "paid": 1450,
+        "pending": 0,
+        "withheld": 300
+      }
+    },
+    "task_status": {
+      "adjudication": 0,
+      "approved": 4,
+      "assigned": 0,
+      "queued": 3,
+      "rejected": 1,
+      "submitted": 1
+    }
+  },
+  "rate_cards": [
+    {
+      "rate_cents": 300,
+      "task_type": "default",
+      "tier": "junior"
+    },
+    {
+      "rate_cents": 450,
+      "task_type": "pairwise",
+      "tier": "junior"
+    },
+    {
+      "rate_cents": 500,
+      "task_type": "default",
+      "tier": "senior"
+    },
+    {
+      "rate_cents": 650,
+      "task_type": "pairwise",
+      "tier": "senior"
+    },
+    {
+      "rate_cents": 800,
+      "task_type": "default",
+      "tier": "lead"
+    }
+  ],
+  "rubric": {
+    "criteria": [
+      {
+        "key": "accuracy",
+        "label": "Accuracy",
+        "weight": 2.0
+      },
+      {
+        "key": "clarity",
+        "label": "Clarity",
+        "weight": 1.0
+      },
+      {
+        "key": "safety",
+        "label": "Safety",
+        "weight": 1.0
+      }
+    ],
+    "id": "00000000-0000-0000-0000-0000000000ff",
+    "name": "conformance",
+    "version": 1
+  },
+  "settings": {
+    "attention_fraction": 0.5,
+    "attention_min_checks": 2,
+    "attention_threshold": 0.7,
+    "attention_tolerance": 1.0,
+    "attention_window": 10,
+    "lease_seconds": 900
+  },
+  "steps": [
+    {
+      "action": "claim",
+      "expect": "t-6",
+      "expert": "A"
+    },
+    {
+      "action": "claim",
+      "expect": "t-2",
+      "expert": "B"
+    },
+    {
+      "action": "claim",
+      "expect": "t-4",
+      "expert": "C"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 4.75
+      },
+      "expert": "A",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 5,
+        "clarity": 4,
+        "safety": 5
+      },
+      "task": "t-6",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 4.0
+      },
+      "expert": "B",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 4,
+        "clarity": 4,
+        "safety": 4
+      },
+      "task": "t-2",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 2.25
+      },
+      "expert": "C",
+      "rationale": "Looks fine.",
+      "scores": {
+        "accuracy": 2,
+        "clarity": 3,
+        "safety": 2
+      },
+      "task": "t-4",
+      "time_spent_seconds": 12
+    },
+    {
+      "action": "claim",
+      "expect": "gold-1",
+      "expert": "A"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": {
+          "max_deviation": 1.0,
+          "passed": true
+        },
+        "expert_status": "active",
+        "task_status": "queued",
+        "weighted_score": 4.75
+      },
+      "expert": "A",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 5,
+        "clarity": 5,
+        "safety": 4
+      },
+      "task": "gold-1",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "claim",
+      "expect": "gold-1",
+      "expert": "B"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": {
+          "max_deviation": 1.0,
+          "passed": true
+        },
+        "expert_status": "active",
+        "task_status": "queued",
+        "weighted_score": 4.5
+      },
+      "expert": "B",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 4,
+        "clarity": 5,
+        "safety": 5
+      },
+      "task": "gold-1",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "claim",
+      "expect": "gold-2",
+      "expert": "C"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": {
+          "max_deviation": 3.0,
+          "passed": false
+        },
+        "expert_status": "active",
+        "task_status": "queued",
+        "weighted_score": 1.0
+      },
+      "expert": "C",
+      "rationale": "Looks fine.",
+      "scores": {
+        "accuracy": 1,
+        "clarity": 1,
+        "safety": 1
+      },
+      "task": "gold-2",
+      "time_spent_seconds": 9
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 300,
+        "payout_status": "pending",
+        "task_status": "approved"
+      },
+      "expert": "C",
+      "reason": null,
+      "task": "t-4"
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 500,
+        "payout_status": "pending",
+        "task_status": "approved"
+      },
+      "expert": "A",
+      "reason": null,
+      "task": "t-6"
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 450,
+        "payout_status": "pending",
+        "task_status": "approved"
+      },
+      "expert": "B",
+      "reason": null,
+      "task": "t-2"
+    },
+    {
+      "action": "claim",
+      "expect": "t-3",
+      "expert": "C"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 4.0
+      },
+      "expert": "C",
+      "rationale": "Looks fine.",
+      "scores": {
+        "accuracy": 5,
+        "clarity": 1,
+        "safety": 5
+      },
+      "task": "t-3",
+      "time_spent_seconds": 15
+    },
+    {
+      "action": "claim",
+      "expect": "gold-3",
+      "expert": "C"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": {
+          "max_deviation": 2.0,
+          "passed": false
+        },
+        "expert_status": "paused",
+        "task_status": "queued",
+        "weighted_score": 5.0
+      },
+      "expert": "C",
+      "rationale": "Looks fine.",
+      "scores": {
+        "accuracy": 5,
+        "clarity": 5,
+        "safety": 5
+      },
+      "task": "gold-3",
+      "time_spent_seconds": 8
+    },
+    {
+      "action": "claim",
+      "expect": 423,
+      "expert": "C"
+    },
+    {
+      "action": "review",
+      "decision": "reject",
+      "expect": {
+        "payout_cents": null,
+        "payout_status": null,
+        "task_status": "rejected"
+      },
+      "expert": "C",
+      "reason": "spot check failed",
+      "task": "t-3"
+    },
+    {
+      "action": "claim",
+      "expect": "t-1",
+      "expert": "A"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 4.0
+      },
+      "expert": "A",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 4,
+        "clarity": 4,
+        "safety": 4
+      },
+      "task": "t-1",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "claim",
+      "expect": "t-5",
+      "expert": "B"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "queued",
+        "weighted_score": 3.5
+      },
+      "expert": "B",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 3,
+        "clarity": 4,
+        "safety": 4
+      },
+      "task": "t-5",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "claim",
+      "expect": "gold-2",
+      "expert": "A"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": {
+          "max_deviation": 1.0,
+          "passed": true
+        },
+        "expert_status": "active",
+        "task_status": "queued",
+        "weighted_score": 3.75
+      },
+      "expert": "A",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 4,
+        "clarity": 4,
+        "safety": 3
+      },
+      "task": "gold-2",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "claim",
+      "expect": "t-5",
+      "expert": "A"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 3.75
+      },
+      "expert": "A",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 4,
+        "clarity": 3,
+        "safety": 4
+      },
+      "task": "t-5",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 500,
+        "payout_status": "pending",
+        "task_status": "approved"
+      },
+      "expert": "A",
+      "reason": null,
+      "task": "t-1"
+    },
+    {
+      "action": "close_period",
+      "expect": {
+        "expert_count": 2,
+        "payout_count": 3,
+        "total_cents": 1450
+      },
+      "label": "2026-09-C"
+    },
+    {
+      "action": "export",
+      "expect": {
+        "row_count": 4,
+        "sha256": "e85875d645eb9e79ccd40c3312b6117b1e7a20735dc1be444baada160da46a36",
+        "size_bytes": 2580
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "deadline_hours": null,
+      "expected_scores": null,
+      "external_ref": "t-1",
+      "id": "00000000-0000-0000-0000-000000000101",
+      "is_attention_check": false,
+      "min_tier": "junior",
+      "priority": 0,
+      "prompt": "Explain why this list comprehension leaks memory and rewrite it as a generator.",
+      "required_grades": 1,
+      "required_tags": [
+        "python"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to t-1"
+        }
+      ],
+      "task_type": "single"
+    },
+    {
+      "deadline_hours": null,
+      "expected_scores": null,
+      "external_ref": "t-2",
+      "id": "00000000-0000-0000-0000-000000000102",
+      "is_attention_check": false,
+      "min_tier": "junior",
+      "priority": 2,
+      "prompt": "Explain why this list comprehension leaks memory and rewrite it as a generator.",
+      "required_grades": 1,
+      "required_tags": [
+        "python"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to t-2"
+        },
+        {
+          "model": "model-b",
+          "text": "Response 2 to t-2"
+        }
+      ],
+      "task_type": "pairwise"
+    },
+    {
+      "deadline_hours": null,
+      "expected_scores": {
+        "accuracy": 5,
+        "clarity": 5,
+        "safety": 5
+      },
+      "external_ref": "gold-1",
+      "id": "00000000-0000-0000-0000-000000000103",
+      "is_attention_check": true,
+      "min_tier": "junior",
+      "priority": 1,
+      "prompt": "Explain why this list comprehension leaks memory and rewrite it as a generator.",
+      "required_grades": 1,
+      "required_tags": [
+        "python"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to gold-1"
+        }
+      ],
+      "task_type": "single"
+    },
+    {
+      "deadline_hours": 6,
+      "expected_scores": null,
+      "external_ref": "t-3",
+      "id": "00000000-0000-0000-0000-000000000104",
+      "is_attention_check": false,
+      "min_tier": "junior",
+      "priority": 0,
+      "prompt": "Summarize the enforceability of a restrictive covenant in this employment contract.",
+      "required_grades": 1,
+      "required_tags": [
+        "law"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to t-3"
+        }
+      ],
+      "task_type": "single"
+    },
+    {
+      "deadline_hours": 2,
+      "expected_scores": null,
+      "external_ref": "t-4",
+      "id": "00000000-0000-0000-0000-000000000105",
+      "is_attention_check": false,
+      "min_tier": "junior",
+      "priority": 0,
+      "prompt": "Summarize the enforceability of a restrictive covenant in this employment contract.",
+      "required_grades": 1,
+      "required_tags": [
+        "law"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to t-4"
+        }
+      ],
+      "task_type": "single"
+    },
+    {
+      "deadline_hours": null,
+      "expected_scores": null,
+      "external_ref": "t-5",
+      "id": "00000000-0000-0000-0000-000000000106",
+      "is_attention_check": false,
+      "min_tier": "junior",
+      "priority": 0,
+      "prompt": "Explain why this list comprehension leaks memory and rewrite it as a generator.",
+      "required_grades": 2,
+      "required_tags": [
+        "python"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to t-5"
+        }
+      ],
+      "task_type": "single"
+    },
+    {
+      "deadline_hours": null,
+      "expected_scores": {
+        "accuracy": 4,
+        "clarity": 4,
+        "safety": 4
+      },
+      "external_ref": "gold-2",
+      "id": "00000000-0000-0000-0000-000000000107",
+      "is_attention_check": true,
+      "min_tier": "junior",
+      "priority": 0,
+      "prompt": "Summarize the enforceability of a restrictive covenant in this employment contract.",
+      "required_grades": 1,
+      "required_tags": [
+        "law"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to gold-2"
+        }
+      ],
+      "task_type": "single"
+    },
+    {
+      "deadline_hours": null,
+      "expected_scores": null,
+      "external_ref": "t-6",
+      "id": "00000000-0000-0000-0000-000000000108",
+      "is_attention_check": false,
+      "min_tier": "junior",
+      "priority": 3,
+      "prompt": "Explain why this list comprehension leaks memory and rewrite it as a generator.",
+      "required_grades": 1,
+      "required_tags": [
+        "python",
+        "law"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to t-6"
+        }
+      ],
+      "task_type": "single"
+    },
+    {
+      "deadline_hours": null,
+      "expected_scores": {
+        "accuracy": 3,
+        "clarity": 3,
+        "safety": 3
+      },
+      "external_ref": "gold-3",
+      "id": "00000000-0000-0000-0000-000000000109",
+      "is_attention_check": true,
+      "min_tier": "junior",
+      "priority": 0,
+      "prompt": "Summarize the enforceability of a restrictive covenant in this employment contract.",
+      "required_grades": 1,
+      "required_tags": [
+        "law"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to gold-3"
+        }
+      ],
+      "task_type": "single"
+    }
+  ]
+}

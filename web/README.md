@@ -29,7 +29,7 @@ npm run typecheck  # tsc --noEmit
 | `src/sim/summary.ts` | `formatSummary()`, the block `sim/demo.py` printed at 1.0.0 |
 | `src/sim/port.ts` | The service version the port tracks and the list of what is not ported |
 | `src/sim/prng.ts`, `clock.ts`, `sha256.ts` | sfc32 PRNG, virtual clock, vendored SHA-256 |
-| `src/selfcheck.ts` | Node self-check for the port |
+| `src/selfcheck.ts` | Node self-check: the port's own rules, the conformance replay against `../tests/fixtures/port_conformance.json`, and the stylesheet contrast and size floors |
 | `src/ui/` | Page sections built on one shared in-memory platform |
 
 ## Rules the port keeps
@@ -42,7 +42,13 @@ npm run typecheck  # tsc --noEmit
   zero tag mismatches, every double-assignment attempt blocked, careless experts
   paused, withheld payouts kept out of the statement.
 - The checksum on the delivery card is a real SHA-256 of the JSONL body,
-  recomputed on every change.
+  recomputed on every change. `stableStringify()` prints floats the way Python's
+  `json.dumps` does, so a row serialised here is byte for byte the row the service exports.
+- `tests/test_port_conformance.py` runs one fixed scenario through the PostgreSQL service and
+  records every outcome in `tests/fixtures/port_conformance.json`; the selfcheck replays it and
+  asserts the port reproduces each claim, grade, payout, total and the JSONL sha256. Regenerate
+  with `PANELIST_WRITE_FIXTURE=1 uv run pytest tests/test_port_conformance.py` after an intended
+  behaviour change on the service side.
 
 ## Deployment
 

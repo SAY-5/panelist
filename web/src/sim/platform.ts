@@ -41,6 +41,8 @@ export type ClaimResult =
   | { ok: false; statusCode: 204 | 423; detail: string };
 
 export interface ExpertInput {
+  /** Fixed id, used by the conformance replay; generated from the seed otherwise. */
+  id?: string;
   name: string;
   tags: string[];
   tier: Tier;
@@ -48,6 +50,8 @@ export interface ExpertInput {
 }
 
 export interface TaskInput {
+  /** Fixed id, used by the conformance replay; generated from the seed otherwise. */
+  id?: string;
   externalRef: string;
   prompt: string;
   responses: { model: string; text: string }[];
@@ -106,6 +110,8 @@ export interface DeliveryRow {
   weighted_score: number;
   rationale: string;
   time_spent_seconds: number;
+  /** Consensus rounds (4.0.0) are not modelled, so every row carries null here. */
+  consensus: null;
 }
 
 function eligibleTiers(tier: Tier): Tier[] {
@@ -113,13 +119,22 @@ function eligibleTiers(tier: Tier): Tier[] {
   return (Object.keys(TIER_RANK) as Tier[]).filter((t) => TIER_RANK[t] <= rank);
 }
 
-/** json.dumps(sort_keys=True, separators=(",", ":")) */
-export function stableStringify(value: unknown): string {
+/** Delivery fields the service stores as floats: Python prints 4.0 where JSON.stringify prints 4. */
+const FLOAT_FIELDS = new Set(["weighted_score", "spread"]);
+
+/** float.__repr__: shortest round-trip digits, always with a fractional part. */
+function pythonFloat(n: number): string {
+  return Number.isInteger(n) ? `${n}.0` : String(n);
+}
+
+/** json.dumps(sort_keys=True, separators=(",", ":")), byte for byte with the service's export. */
+export function stableStringify(value: unknown, asFloat = false): string {
+  if (typeof value === "number") return asFloat ? pythonFloat(value) : JSON.stringify(value);
   if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (Array.isArray(value)) return `[${value.map((v) => stableStringify(v, asFloat)).join(",")}]`;
   const obj = value as Record<string, unknown>;
   const keys = Object.keys(obj).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k], asFloat || FLOAT_FIELDS.has(k) || k === "scores")}`).join(",")}}`;
 }
 
 export class Platform {
@@ -162,9 +177,9 @@ export class Platform {
 
   // ----- seeding -----------------------------------------------------------
 
-  createRubric(name: string, version: number, criteria: Omit<Criterion, "position" | "scaleMin" | "scaleMax">[]): Rubric {
+  createRubric(name: string, version: number, criteria: Omit<Criterion, "position" | "scaleMin" | "scaleMax">[], id?: string): Rubric {
     this.rubric = {
-      id: this.ids.uuid(),
+      id: id ?? this.ids.uuid(),
       name,
       version,
       criteria: criteria.map((c, i) => ({ ...c, scaleMin: 1, scaleMax: 5, position: i })),
@@ -178,7 +193,7 @@ export class Platform {
 
   createExpert(input: ExpertInput): Expert {
     const expert: Expert = {
-      id: this.ids.uuid(),
+      id: input.id ?? this.ids.uuid(),
       name: input.name,
       tags: [...input.tags],
       tier: input.tier,
@@ -195,7 +210,7 @@ export class Platform {
     const rubricId = this.rubric.id;
     return inputs.map((input) => {
       const task: Task = {
-        id: this.ids.uuid(),
+        id: input.id ?? this.ids.uuid(),
         seq: ++this.taskSeq,
         externalRef: input.externalRef,
         prompt: input.prompt,
@@ -708,6 +723,7 @@ export class Platform {
         weighted_score: g.weightedScore,
         rationale: g.rationale,
         time_spent_seconds: g.timeSpentSeconds,
+        consensus: null,
       }));
   }
 
