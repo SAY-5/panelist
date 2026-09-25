@@ -1,5 +1,8 @@
 /** Self-check for the simulation port. Run with `npm run selfcheck`. */
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { Clock, EPOCH_MS } from "./sim/clock";
 import { runDemo, seedPlatform, DEFAULT_DEMO } from "./sim/demo";
 import { Platform, ServiceError } from "./sim/platform";
@@ -268,6 +271,52 @@ check(
   const third = platform.exportDelivery();
   check("a new approval changes the checksum and row count", third.checksum !== first.checksum && third.rowCount === first.rowCount + 1);
   check("jsonl rows use sorted keys and compact separators", platform.buildJsonl().body.split("\n")[0]?.startsWith('{"expert_id":') === true && !platform.buildJsonl().body.includes(": "));
+}
+
+// ----- stylesheet: contrast and size floors --------------------------------
+{
+  const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+  const token = (name: string): string => {
+    const m = css.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`));
+    if (!m?.[1]) throw new Error(`token --${name} missing`);
+    return m[1];
+  };
+  const luminance = (hex: string): number => {
+    const channel = (i: number) => {
+      const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  };
+  const contrast = (fg: string, bg: string): number => {
+    const [a, b] = [luminance(fg), luminance(bg)];
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  // WCAG 2.1 AA for text below 18pt regular: 4.5:1. Every ink token on every surface.
+  for (const fg of ["ink", "ink-2", "ink-3"]) {
+    for (const bg of ["paper", "paper-2", "panel"]) {
+      const r = contrast(token(fg), token(bg));
+      check(`--${fg} on --${bg} reaches 4.5:1`, r >= 4.5, r.toFixed(2));
+    }
+  }
+  check("--accent-ink on --accent-soft reaches 4.5:1", contrast(token("accent-ink"), token("accent-soft")) >= 4.5, contrast(token("accent-ink"), token("accent-soft")).toFixed(2));
+  check("--accent on --paper reaches 4.5:1", contrast(token("accent"), token("paper")) >= 4.5, contrast(token("accent"), token("paper")).toFixed(2));
+  check("--accent on --panel reaches 4.5:1", contrast(token("accent"), token("panel")) >= 4.5, contrast(token("accent"), token("panel")).toFixed(2));
+  const sizes = [...css.matchAll(/font-size:\s*([\d.]+)px/g)].map((m) => Number(m[1]));
+  check("no fixed font size below 10px", sizes.length > 0 && Math.min(...sizes) >= 10, String(Math.min(...sizes)));
+  const blocks = css.split("}").map((b) => b.split("{")).filter((p) => p.length === 2) as [string, string][];
+  const sizeOf = (selector: string): number | null => {
+    for (const [sel, body] of blocks) {
+      if (sel.trim() !== selector) continue;
+      const m = body.match(/font-size:\s*([\d.]+)px/);
+      if (m?.[1]) return Number(m[1]);
+    }
+    return null;
+  };
+  for (const selector of [".counter-label", "th", "caption", ".stamp", ".tag", ".log-kind", ".criterion-scale"]) {
+    const size = sizeOf(selector);
+    check(`${selector} tracked label is at least 11px`, size !== null && size >= 11, String(size));
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} assertions`);

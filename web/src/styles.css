@@ -9,10 +9,11 @@
   --panel: #fbf8f1;
   --ink: #16140e;
   --ink-2: #57513f;
-  --ink-3: #857d67;
+  --ink-3: #6b6350;
   --rule: #ddd2b9;
   --rule-2: #c8bb9d;
   --accent: #c9321f;
+  --accent-ink: #a5281a;
   --accent-soft: #f6e2dd;
 
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -236,7 +237,7 @@ a:hover {
 
 .counter-label {
   display: block;
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--ink-3);
@@ -410,7 +411,7 @@ button.primary:hover:not(:disabled) {
 
 button.danger {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 button.tiny {
@@ -492,7 +493,7 @@ th {
   text-align: left;
   font-weight: 500;
   color: var(--ink-3);
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   padding: 0 10px 6px 0;
@@ -518,7 +519,7 @@ tr.is-out td {
 
 .tag {
   display: inline-block;
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   border: 1px solid var(--rule-2);
   border-radius: 2px;
@@ -537,7 +538,7 @@ tr.is-out td {
 
 .stamp {
   display: inline-block;
-  font-size: 10.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   padding: 1px 6px;
@@ -551,7 +552,7 @@ tr.is-out td {
 }
 
 .stamp-accent {
-  color: var(--accent);
+  color: var(--accent-ink);
   background: var(--accent-soft);
 }
 
@@ -726,7 +727,7 @@ pre {
 }
 
 .gauge-caption {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   fill: var(--ink-3);
   text-transform: uppercase;
@@ -765,7 +766,7 @@ pre {
 .criterion-scale {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-3);
 }
 
@@ -842,7 +843,7 @@ pre {
 }
 
 .log-kind {
-  font-size: 10px;
+  font-size: 11px;
   hyphens: none;
   letter-spacing: 0.08em;
   text-transform: uppercase;
