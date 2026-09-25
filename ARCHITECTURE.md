@@ -60,7 +60,7 @@ A grade is stored twice on purpose. `grades.scores_snapshot` is a JSONB copy of 
 
 ## Delivery export
 
-`GET /deliveries/export` selects every approved grade on a non-golden task, ordered by task sequence then expert, and serializes one JSON object per line with sorted keys and compact separators. The body is hashed with SHA-256, the next version number is taken from `MAX(version) + 1`, and the object is written to `s3://<bucket>/deliveries/panelist-grades-v<N>-<sha12>.jsonl` (or to `DELIVERY_DIR` when no bucket is configured). The same approved set always yields the same checksum; a new approval changes it. The `deliveries` table records version, checksum, location, row count and size.
+`POST /deliveries` selects every approved grade on a non-golden task, ordered by task sequence then expert, and serializes one JSON object per line with sorted keys and compact separators. The body is hashed with SHA-256, the next version number is taken from `MAX(version) + 1`, and the object is written to `s3://<bucket>/deliveries/panelist-grades-v<N>-<sha12>.jsonl` (or to `DELIVERY_DIR` when no bucket is configured). The same approved set always yields the same checksum; a new approval changes it. The `deliveries` table records version, checksum, location, row count and size. `GET /deliveries/{version}/verify` reads the stored object back from S3 or disk and recomputes the sha256, the row count and the size, so an operator can prove a delivered file is the one the row describes rather than trust the row. The export is a `POST` because every call stores a new version; listing and verifying need only `deliveries:read`, which reviewers hold.
 
 ## Observability
 

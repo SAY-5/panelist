@@ -2,11 +2,12 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from panelist.config import get_settings
 from panelist.models import (
+    Consensus,
     Delivery,
     Expert,
     ExpertStatus,
@@ -35,6 +36,29 @@ def _expired_leases(db: Session) -> int:
         db.scalar(
             select(func.count(Task.id)).where(
                 Task.status == TaskStatus.assigned, Task.lease_expires_at < datetime.now(UTC)
+            )
+        )
+        or 0
+    )
+
+
+def _undelivered_approved(db: Session) -> int:
+    """Approved consensus tasks whose selected grade is not approved, so the export skips them."""
+    approved_pick = (
+        select(Review.id)
+        .where(
+            Review.grade_id == Consensus.delivered_grade_id,
+            Review.decision == ReviewDecision.approve,
+        )
+        .exists()
+    )
+    return int(
+        db.scalar(
+            select(func.count(Task.id))
+            .join(Consensus, Consensus.task_id == Task.id)
+            .where(
+                and_(Task.status == TaskStatus.approved, Task.is_attention_check.is_(False)),
+                ~approved_pick,
             )
         )
         or 0
@@ -103,7 +127,12 @@ def _days_since(moment: datetime | None) -> float | None:
 
 
 def _reminders(
-    settings, uncalibrated: int, period: dict, backlog: int, rejected_twice: int
+    settings,
+    uncalibrated: int,
+    period: dict,
+    backlog: int,
+    rejected_twice: int,
+    undelivered: int,
 ) -> list[str]:
     age = _days_since(period["closed_at"])
     out = []
@@ -122,6 +151,11 @@ def _reminders(
         out.append(f"{backlog} tasks are waiting for adjudication")
     if rejected_twice:
         out.append(f"{rejected_twice} tasks have been rejected twice and are back in the queue")
+    if undelivered:
+        out.append(
+            f"{undelivered} approved tasks have no delivered grade:"
+            " the consensus pick is unreviewed"
+        )
     return out
 
 
@@ -148,6 +182,7 @@ def tick(db: Session, actor: str = "system:tick") -> dict:
     period = _period_status(db)
     backlog = consensus.backlog(db)
     rejected_twice = _rejected_twice(db)
+    undelivered = _undelivered_approved(db)
     audit.record(
         db,
         actor,
@@ -167,5 +202,8 @@ def tick(db: Session, actor: str = "system:tick") -> dict:
         "unbilled_cents": period["unbilled_cents"],
         "days_since_period_close": None if age is None else round(age, 2),
         "rejected_twice": rejected_twice,
-        "reminders": _reminders(settings, uncalibrated, period, backlog, rejected_twice),
+        "undelivered_approved": undelivered,
+        "reminders": _reminders(
+            settings, uncalibrated, period, backlog, rejected_twice, undelivered
+        ),
     }

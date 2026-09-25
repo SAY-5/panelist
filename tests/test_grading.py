@@ -120,7 +120,7 @@ def test_rejected_single_grader_task_returns_to_the_queue(client, admin_key, rev
     assert client.get(f"/tasks/{tid}", headers=h(admin_key)).json()["status"] == "submitted"
     review(client, reviewer_key, third["id"], "approve")
     assert client.get(f"/tasks/{tid}", headers=h(admin_key)).json()["status"] == "approved"
-    export = client.get("/deliveries/export", headers=h(admin_key)).json()
+    export = client.post("/deliveries", headers=h(admin_key)).json()
     rows = [json.loads(line) for line in Path(export["location"]).read_text().splitlines()]
     assert [r["expert_id"] for r in rows] == [c_expert["id"]]
     assert rows[0]["consensus"] is None  # the two rejected grades never formed a round

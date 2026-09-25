@@ -111,7 +111,7 @@ def test_analytics_and_delivery_group_by_rubric_version(client, admin_key, revie
 
     review(client, reviewer_key, g1["id"])
     review(client, reviewer_key, g2["id"])
-    d = client.get("/deliveries/export", headers=h(admin_key)).json()
+    d = client.post("/deliveries", headers=h(admin_key)).json()
     rows = [json.loads(line) for line in Path(d["location"]).read_text().splitlines()]
     assert [(r["rubric"]["version"], r["rubric"]["id"]) for r in rows] == [(1, v1), (2, v2)]
     assert set(rows[1]["scores"]) == {"accuracy", "clarity", "safety", "tone"}

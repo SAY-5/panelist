@@ -127,7 +127,9 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | GET | `/analytics/agreement` | analytics:read | Agreement between two experts |
 | GET | `/analytics/agreement/global` | analytics:read | Agreement across all multi-graded tasks |
 | GET | `/analytics/experts/{id}/reliability` | analytics:read | Approval rate, attention rate, deviation from consensus |
-| GET | `/deliveries/export` | deliveries:write | Build and store a new dataset version |
+| POST | `/deliveries` | deliveries:write | Build, checksum and store a new dataset version |
+| GET | `/deliveries` | deliveries:read | Stored versions with checksum, location, row count and size |
+| GET | `/deliveries/{version}/verify` | deliveries:read | Read the stored object back and recompute its sha256, row count and size |
 | GET | `/ops/overview` | tasks:read | Queue depth by tag, paused experts, adjudication backlog, period status, last delivery |
 | GET | `/ops/audit.csv` | admin | Audit trail as CSV, filterable by action and start time |
 | GET | `/metrics` | none | Prometheus metrics |

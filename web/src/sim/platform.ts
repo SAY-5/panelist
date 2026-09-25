@@ -742,7 +742,7 @@ export class Platform {
     return { body: Platform.jsonl(rows), count: rows.length };
   }
 
-  /** GET /deliveries/export */
+  /** POST /deliveries */
   exportDelivery(actor = "admin"): Delivery {
     const { body, count } = this.buildJsonl();
     const checksum = sha256Hex(body);

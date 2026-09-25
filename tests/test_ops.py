@@ -49,7 +49,7 @@ def _seed(client, admin_key, reviewer_key):
     client.patch(
         f"/experts/{c['id']}/status", json={"status": "paused"}, headers=h(admin_key)
     ).raise_for_status()
-    client.get("/deliveries/export", headers=h(admin_key)).raise_for_status()
+    client.post("/deliveries", headers=h(admin_key)).raise_for_status()
     return ids, a, c
 
 

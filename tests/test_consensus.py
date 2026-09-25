@@ -3,12 +3,13 @@ from pathlib import Path
 
 from sqlalchemy import select
 
+from panelist.cli import main as cli_main
 from panelist.models import Consensus, Task, TaskStatus
 from tests.helpers import claim, grade, h, make_expert, make_tasks, review, setup_rubric
 
 
 def _delivered(client, admin_key):
-    export = client.get("/deliveries/export", headers=h(admin_key)).json()
+    export = client.post("/deliveries", headers=h(admin_key)).json()
     body = Path(export["location"]).read_text()
     return [json.loads(line) for line in body.splitlines()]
 
@@ -236,3 +237,33 @@ def test_rejecting_every_grade_delivers_nothing(client, admin_key, reviewer_key,
     assert _delivered(client, admin_key) == []
     assert db.scalar(select(Consensus.delivered_grade_id)) is None
     _one_row_per_approved_task(client, admin_key, db)
+
+
+def test_tick_flags_an_approved_task_whose_pick_is_unreviewed(
+    client, admin_key, reviewer_key, capsys
+):
+    rubric = setup_rubric(client, admin_key)
+    (tid,) = make_tasks(client, admin_key, rubric, [{"required_grades": 2}])
+    grades = _grade_round(
+        client,
+        admin_key,
+        tid,
+        {
+            "A": {"accuracy": 4, "clarity": 4, "safety": 4},
+            "B": {"accuracy": 4, "clarity": 5, "safety": 4},
+        },
+    )
+    review(client, reviewer_key, grades["B"]["id"], "approve")  # A is the pick, still unreviewed
+    assert cli_main(["tick"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["undelivered_approved"] == 1
+    assert (
+        "1 approved tasks have no delivered grade: the consensus pick is unreviewed"
+        in out["reminders"]
+    )
+    assert _delivered(client, admin_key) == []
+
+    review(client, reviewer_key, grades["A"]["id"], "approve")
+    assert cli_main(["tick"]) == 0
+    assert json.loads(capsys.readouterr().out)["undelivered_approved"] == 0
+    assert len(_delivered(client, admin_key)) == 1

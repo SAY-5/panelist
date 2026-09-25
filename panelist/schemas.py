@@ -403,6 +403,18 @@ class DeliveryOut(ORMModel):
     created_at: datetime
 
 
+class DeliveryVerification(BaseModel):
+    version: int
+    location: str
+    stored_checksum: str
+    checksum: str
+    row_count: int
+    rows_read: int
+    size_bytes: int
+    bytes_read: int
+    match: bool
+
+
 # Operations
 
 

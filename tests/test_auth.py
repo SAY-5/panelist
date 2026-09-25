@@ -54,7 +54,8 @@ def test_expert_cannot_review_or_export(client, admin_key):
         headers=h(key),
     )
     assert r.status_code == 403
-    assert client.get("/deliveries/export", headers=h(key)).status_code == 403
+    assert client.post("/deliveries", headers=h(key)).status_code == 403
+    assert client.get("/deliveries", headers=h(key)).status_code == 403
     assert client.get("/payouts/ledger", headers=h(key)).status_code == 403
 
 

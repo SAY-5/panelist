@@ -13,7 +13,14 @@ from panelist.models import ApiKey, Expert, Role
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 REVIEWER_SCOPES = frozenset(
-    {"grades:read", "reviews:write", "tasks:read", "payouts:read", "analytics:read"}
+    {
+        "grades:read",
+        "reviews:write",
+        "tasks:read",
+        "payouts:read",
+        "analytics:read",
+        "deliveries:read",
+    }
 )
 
 SCOPES: dict[Role, frozenset[str]] = {
@@ -34,6 +41,7 @@ SCOPES: dict[Role, frozenset[str]] = {
             "payouts:read",
             "payouts:write",
             "analytics:read",
+            "deliveries:read",
             "deliveries:write",
             "rubrics:write",
             "admin",
