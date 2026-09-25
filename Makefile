@@ -1,4 +1,4 @@
-.PHONY: setup lint test migrate demo demo-down tf-validate tf-plan run web-check
+.PHONY: setup lint test migrate demo demo-down demo-check tf-validate tf-plan run web-check
 
 COMPOSE := docker compose -f deploy/docker-compose.yml
 DEMO_DB := postgresql+psycopg://panelist:panelist@localhost:5439/panelist
@@ -27,6 +27,9 @@ demo:
 
 demo-down:
 	$(COMPOSE) down -v
+
+demo-check:
+	uv run python -m sim.demo --check docs/demo-2026-09-25.json
 
 tf-validate:
 	cd deploy/terraform && terraform fmt -check -recursive && terraform init -backend=false -input=false >/dev/null && terraform validate

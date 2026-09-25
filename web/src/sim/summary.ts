@@ -74,7 +74,7 @@ export function formatSummary(s: DemoSummary, timing: Timing | null = null): str
     RULE,
     `experts: ${s.experts}  tasks: ${s.tasks} (golden: ${s.golden})  seed: ${s.seed}`,
     `config: attention fraction ${st.attentionFraction}, window ${st.attentionWindow}, min checks ${st.attentionMinChecks}, threshold ${st.attentionThreshold}, lease ${st.leaseSeconds}s`,
-    `tasks routed by tag (${s.claims} claims): ${byTag}`,
+    `claims by matched tag (${s.claims} claims; a claim matching two of the expert's tags counts under both): ${byTag}`,
     `tag mismatches: ${s.mismatches}`,
     `double-assignment attempts blocked: ${s.doubleBlocked}/${s.doubleAttempts}  (concurrent first claims: ${s.concurrentFirstClaims}, unique: ${s.uniqueFirstClaims})`,
     `expired leases reclaimed: ${s.reclaims} (admin sweep: ${s.adminSweepReclaimed})`,

@@ -51,7 +51,7 @@ check(
   const sa = formatSummary(a.summary);
   const sb = formatSummary(b.summary);
   check("same seed gives identical summary", sa === sb);
-  check("summary block has the README shape", sa.startsWith("=".repeat(72) + "\nPANELIST DEMO SUMMARY\n") && sa.includes("tasks routed by tag (") && sa.includes("delivery v1:"));
+  check("summary block has the README shape", sa.startsWith("=".repeat(72) + "\nPANELIST DEMO SUMMARY\n") && sa.includes("claims by matched tag (") && sa.includes("delivery v1:"));
   const c = runDemo({ ...DEFAULT_DEMO, seed: 8 });
   check("different seed changes the summary", formatSummary(c.summary) !== sa);
   check("tag mismatch count is 0 in the full run", a.summary.mismatches === 0);

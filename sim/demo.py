@@ -1,16 +1,22 @@
 """End-to-end demo: seed, route, grade, review, pay, export. Prints a summary."""
 
 import argparse
+import hashlib
+import json
 import os
+import platform
+import random
 import secrets
+import subprocess
 import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import httpx
 import uvicorn
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from sim.world import RATES, RUBRIC, SimExpert, World, build_world, grade_for, weighted
 
@@ -26,6 +32,7 @@ os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
 
+from panelist import __version__  # noqa: E402
 from panelist.cli import bootstrap  # noqa: E402
 from panelist.cli import tick as run_tick  # noqa: E402
 from panelist.config import get_settings  # noqa: E402
@@ -35,6 +42,62 @@ from panelist.models import Task  # noqa: E402
 
 PORT = int(os.environ.get("DEMO_PORT", "8765"))
 BASE = f"http://127.0.0.1:{PORT}"
+
+
+def world_fingerprint(world: World) -> str:
+    """sha256 over everything the seed fixes: experts, tasks and reference scores, not deadlines."""
+    fixed = {
+        "experts": [
+            {
+                "name": e.name,
+                "tags": e.tags,
+                "tier": e.tier,
+                "careless": e.careless,
+                "abandons_first": e.abandons_first,
+            }
+            for e in world.experts
+        ],
+        "tasks": [
+            {k: v for k, v in t.payload.items() if k != "deadline"} | {"true_scores": t.true_scores}
+            for t in world.tasks
+        ],
+    }
+    return hashlib.sha256(json.dumps(fixed, sort_keys=True).encode()).hexdigest()
+
+
+def environment(db_version: str | None) -> dict:
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        sha = "unknown"
+    return {
+        "panelist_version": __version__,
+        "commit": sha,
+        "python": platform.python_version(),
+        "machine": f"{platform.system()} {platform.release()} {platform.machine()}",
+        "cpu_count": os.cpu_count(),
+        "postgres": db_version,
+    }
+
+
+def check_artifact(path: str) -> int:
+    """Compare a committed run artifact with the world the current code builds from its seed."""
+    artifact = json.loads(Path(path).read_text())
+    run = artifact["run"]
+    world = build_world(run["seed"], run["experts"], run["tasks"], run["golden_share"])
+    fresh = world_fingerprint(world)
+    same = fresh == artifact["world_fingerprint"]
+    print(f"artifact: {path}")
+    print(f"seed {run['seed']}, {run['experts']} experts, {run['tasks']} tasks")
+    print(f"world fingerprint in artifact: {artifact['world_fingerprint']}")
+    print(f"world fingerprint from code:   {fresh}  ({'match' if same else 'DIFFERENT'})")
+    print("fixed by the seed: expert tags and tiers, the careless and abandoning experts, task")
+    print("tags, types, priorities, the golden set and reference scores, each expert's noise")
+    print("varies per run: which expert takes which task, and with it the per-tag claim counts,")
+    print("failed checks, agreement, checksum and timings")
+    return 0 if same else 1
 
 
 def start_api() -> uvicorn.Server:
@@ -151,7 +214,8 @@ def contention_round(world: World, stats: Stats) -> tuple[int, int]:
 
 
 def run_expert(e: SimExpert, world: World, stats: Stats, tasks_by_id: dict) -> None:
-    rng = world.rng.__class__(world.seed ^ hash(e.name) & 0xFFFF)
+    # A string seed is hashed deterministically, unlike hash(str), which is salted per process.
+    rng = random.Random(f"{world.seed}:{e.name}")
     with client(e.key) as c:
         while True:
             started = time.perf_counter()
@@ -169,7 +233,7 @@ def run_expert(e: SimExpert, world: World, stats: Stats, tasks_by_id: dict) -> N
             sim_task = tasks_by_id[task["id"]]
             e.served += 1
             required = set(sim_task.payload["required_tags"])
-            stats.add(claims=1, routed_by_tag=Counter(sorted(required)[:1]))
+            stats.add(claims=1, routed_by_tag=Counter(sorted(required & set(e.tags))))
             if not required & set(e.tags):
                 stats.add(mismatches=1)
             body = dict(task_id=task["id"], **grade_for(rng, e, sim_task))
@@ -237,10 +301,15 @@ def main(argv=None) -> int:
     parser.add_argument("--tasks", type=int, default=500)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--golden-share", type=float, default=0.1, help="share of golden tasks")
+    parser.add_argument("--json", metavar="PATH", help="also write the summary and environment")
+    parser.add_argument("--check", metavar="ARTIFACT", help="compare a run artifact's world")
     args = parser.parse_args(argv)
+    if args.check:
+        return check_artifact(args.check)
 
     settings = get_settings()
     world = build_world(args.seed, args.experts, args.tasks, args.golden_share)
+    started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     server = start_api()
     storage = ensure_bucket()
     admin_key = bootstrap(f"pk_admin_{secrets.token_urlsafe(16)}")
@@ -289,6 +358,7 @@ def main(argv=None) -> int:
 
     with session_factory()() as db:
         reclaims = int(db.scalar(select(func.coalesce(func.sum(Task.reclaim_count), 0))))
+        pg_version = db.scalar(text("SHOW server_version"))
     attention = [admin.get(f"/experts/{e.id}/attention").json() for e in world.experts]
     checks_served = sum(a["checks_total"] for a in attention)
     checks_failed = checks_served - sum(a["checks_passed"] for a in attention)
@@ -317,7 +387,10 @@ def main(argv=None) -> int:
         f" min checks {settings.attention_min_checks}, threshold {settings.attention_threshold},"
         f" lease {settings.lease_seconds}s"
     )
-    print(f"tasks routed by tag ({stats.claims} claims): {by_tag}")
+    print(
+        f"claims by matched tag ({stats.claims} claims; a claim matching two of the"
+        f" expert's tags counts under both): {by_tag}"
+    )
     print(f"tag mismatches: {stats.mismatches}")
     print(
         f"double-assignment attempts blocked: {stats.double_blocked}/{stats.double_attempts}"
@@ -401,6 +474,89 @@ def main(argv=None) -> int:
     for reminder in tick["reminders"]:
         print(f"  reminder: {reminder}")
     print("=" * 72)
+    if args.json:
+        report = {
+            "run": {
+                "seed": args.seed,
+                "experts": len(world.experts),
+                "tasks": len(world.tasks),
+                "golden": n_gold,
+                "golden_share": args.golden_share,
+                "started_at": started_at,
+            },
+            "environment": environment(pg_version),
+            "world_fingerprint": world_fingerprint(world),
+            "config": {
+                "attention_fraction": settings.attention_fraction,
+                "attention_window": settings.attention_window,
+                "attention_min_checks": settings.attention_min_checks,
+                "attention_threshold": settings.attention_threshold,
+                "lease_seconds": settings.lease_seconds,
+            },
+            "summary": {
+                "claims": stats.claims,
+                "claims_by_matched_tag": dict(sorted(stats.routed_by_tag.items())),
+                "tag_mismatches": stats.mismatches,
+                "double_attempts": stats.double_attempts,
+                "double_blocked": stats.double_blocked,
+                "concurrent_first_claims": claimed,
+                "unique_first_claims": unique,
+                "expired_leases_reclaimed": reclaims,
+                "admin_sweep_reclaimed": reclaimed_now,
+                "attention_checks_served": checks_served,
+                "attention_checks_failed": checks_failed,
+                "experts_paused": paused,
+                "grades_stored": int(float(metric("panelist_grades_total"))),
+                "approved": approved,
+                "rejected": rejected,
+                "tier_moves": len(moves),
+                "tier_moves_up": ups,
+                "experts_by_tier": counts,
+                "adjudications": adjudicated,
+                "outvoted": outvoted,
+                "task_status": queue["by_status"],
+                "payouts_created": sum(r["payout_count"] for r in ledger["rows"]),
+                "statement": {
+                    "label": period["label"],
+                    "payout_count": period["payout_count"],
+                    "total_cents": period["total_cents"],
+                    "expert_count": period["expert_count"],
+                },
+                "ledger": ledger["totals_by_status"],
+                "agreement": agreement,
+                "criterion_means": {c["criterion_key"]: c["mean"] for c in criteria},
+                "delivery": {
+                    "version": delivery["version"],
+                    "row_count": delivery["row_count"],
+                    "size_bytes": delivery["size_bytes"],
+                    "sha256": delivery["checksum"],
+                    "location": delivery["location"],
+                },
+                "grading_wall_seconds": round(grading_seconds, 3),
+                "claim_latency": {
+                    "claims": len(lat),
+                    "p50_ms": round(p50 * 1000, 1),
+                    "p95_ms": round(p95 * 1000, 1),
+                    "note": "measured client side: 40 threads against one in-process uvicorn worker",
+                },
+                "ops_overview": {
+                    "queued_by_tag": overview["queued_by_tag"],
+                    "tasks_by_status": overview["tasks_by_status"],
+                    "expired_leases": overview["expired_leases"],
+                    "paused_experts": [e["name"] for e in overview["paused_experts"]],
+                    "adjudication_backlog": overview["adjudication_backlog"],
+                    "period": overview["period"],
+                },
+                "tick": {
+                    "reclaimed": tick["reclaimed"],
+                    "experts_scored": tick["experts_scored"],
+                    "tier_changes": len(tick["tier_changes"]),
+                    "reminders": tick["reminders"],
+                },
+            },
+        }
+        Path(args.json).write_text(json.dumps(report, indent=2, sort_keys=True, default=str) + "\n")
+        print(f"wrote {args.json}")
     server.should_exit = True
     return 0 if stats.mismatches == 0 and stats.double_blocked == stats.double_attempts else 1
 

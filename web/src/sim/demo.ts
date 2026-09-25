@@ -184,11 +184,11 @@ function* expertAction(w: Worker, platform: Platform, stats: DemoStats, tasksByI
     const sim = tasksById.get(task.id);
     if (!sim) throw new Error("unknown task");
     w.sim.served += 1;
-    const required = [...task.requiredTags].sort();
-    const tag = required[0] ?? "";
+    const matched = [...task.requiredTags].filter((t) => expert.tags.includes(t)).sort();
+    const tag = matched[0] ?? "";
     stats.claims += 1;
-    stats.routedByTag[tag] = (stats.routedByTag[tag] ?? 0) + 1;
-    if (!task.requiredTags.some((t) => expert.tags.includes(t))) stats.mismatches += 1;
+    for (const t of matched) stats.routedByTag[t] = (stats.routedByTag[t] ?? 0) + 1;
+    if (matched.length === 0) stats.mismatches += 1;
     w.pending = { taskId: task.id, sim };
     const queueLeft = platform.tasks.filter((t) => t.status === "queued" && !t.isAttentionCheck).length;
     yield { kind: "claim", expert: w.sim.name, ref: task.externalRef, tag, golden: task.isAttentionCheck, queueLeft };
