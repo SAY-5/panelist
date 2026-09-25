@@ -161,3 +161,22 @@ def test_outvoted_payout_rule_is_applied(client, admin_key, senior_key, settings
     by_expert = {row["expert_name"]: row for row in ledger["rows"]}
     assert by_expert["A"]["payout_count"] == 3 and by_expert["A"]["total_cents"] == 900
     assert by_expert["B"]["payout_count"] == 2 and by_expert["B"]["total_cents"] == 450
+
+
+def test_review_waits_for_every_required_grade(client, admin_key, reviewer_key):
+    rubric = setup_rubric(client, admin_key)
+    (tid,) = make_tasks(client, admin_key, rubric, [{"required_grades": 2}])
+    _, a = make_expert(client, admin_key, "A", ["python"])
+    _, b = make_expert(client, admin_key, "B", ["python"])
+    assert claim(client, a)["id"] == tid
+    first = grade(client, a, tid)
+    early = client.post(
+        "/reviews", json={"grade_id": first["id"], "decision": "approve"}, headers=h(reviewer_key)
+    )
+    assert early.status_code == 409 and "waiting for 2 grades" in early.json()["detail"]
+    assert client.get("/grades", headers=h(reviewer_key)).json() == []
+    task = client.get(f"/tasks/{tid}", headers=h(admin_key)).json()
+    assert task["status"] == "queued" and task["grades_received"] == 1
+    assert claim(client, b)["id"] == tid
+    grade(client, b, tid)
+    review(client, reviewer_key, first["id"], "approve")
