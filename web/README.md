@@ -2,8 +2,12 @@
 
 A static page that runs the Panelist service layer in the browser. `src/sim/` is a
 TypeScript port of `panelist/services/{routing,grading,attention,payouts,analytics,delivery}.py`
-and `sim/{world,demo}.py`, with a seeded PRNG and a virtual clock standing in for
-PostgreSQL and the wall clock. No backend, no network calls, no Docker.
+and `sim/{world,demo}.py` as they stood at service version 1.0.0 (`src/sim/port.ts` names the
+version and the services), with a seeded PRNG and a virtual clock standing in for PostgreSQL
+and the wall clock. Rubric versions (2.0.0), calibration and tiers (3.0.0), consensus and
+adjudication (4.0.0) and the ops overview and tick (5.0.0) are not ported: a multi-graded task
+delivers every approved grade here, and the summary block stops at the delivery line. No
+backend, no network calls, no Docker.
 
 ## Commands
 
@@ -22,7 +26,8 @@ npm run typecheck  # tsc --noEmit
 | `src/sim/platform.ts` | Claims, leases, reclaim, rubric validation, attention, reviews, payouts, aggregates, delivery |
 | `src/sim/world.ts` | Seeded experts, tasks, golden checks, rate cards, grading behaviour |
 | `src/sim/demo.ts` | The 500-task run as a generator, one observable event per step |
-| `src/sim/summary.ts` | `formatSummary()`, the same block `sim/demo.py` prints |
+| `src/sim/summary.ts` | `formatSummary()`, the block `sim/demo.py` printed at 1.0.0 |
+| `src/sim/port.ts` | The service version the port tracks and the list of what is not ported |
 | `src/sim/prng.ts`, `clock.ts`, `sha256.ts` | sfc32 PRNG, virtual clock, vendored SHA-256 |
 | `src/selfcheck.ts` | Node self-check for the port |
 | `src/ui/` | Page sections built on one shared in-memory platform |

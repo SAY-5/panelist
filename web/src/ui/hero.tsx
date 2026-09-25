@@ -1,6 +1,7 @@
 import { Counter } from "./counter";
 import { useMeasuredRun } from "./demo";
 import { money } from "./format";
+import { PORTED_SERVICE_VERSION } from "../sim";
 
 export function Hero() {
   const run = useMeasuredRun();
@@ -17,8 +18,9 @@ export function Hero() {
           Panelist is a FastAPI and PostgreSQL platform where domain experts pull work from a
           tag-routed queue, score model output against a versioned rubric, are paid per approved
           grade, and whose approved grades ship as checksummed JSONL. Everything on this page is
-          that service layer ported to TypeScript and run right here: no server, no network, a
-          seeded generator and a virtual clock in place of the wall clock.
+          the {PORTED_SERVICE_VERSION} service layer (routing, grading, attention, payouts, analytics,
+          delivery) ported to TypeScript and run right here: no server, no network, a seeded
+          generator and a virtual clock in place of the wall clock.
         </p>
         <p className="hero-meta">
           <span>seed 7</span>
@@ -73,7 +75,8 @@ export function Hero() {
               s ? (
                 <span className="hex">
                   sha256 <b>{s.delivery.checksum.slice(0, 12)}</b>
-                  {s.delivery.checksum.slice(12, 24)}…
+                  {s.delivery.checksum.slice(12, 24)}…, one row per approved grade, the{" "}
+                  {PORTED_SERVICE_VERSION} export rule
                 </span>
               ) : (
                 " "

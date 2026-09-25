@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createDemo, DEFAULT_DEMO, DemoEvent, DemoRun, DemoSummary, formatSummary, NOTABLE } from "../sim";
+import { createDemo, DEFAULT_DEMO, DemoEvent, DemoRun, DemoSummary, formatSummary, NOTABLE, PORTED_SERVICE_VERSION } from "../sim";
 import { Card, Section, Stamp } from "./bits";
 import { money, pct, prefersReducedMotion } from "./format";
 
@@ -150,7 +150,7 @@ export function FullRunSection() {
       id="run"
       num="05"
       title="The full run, end to end"
-      lede="The same 500-task run that sim/demo.py drives against the HTTP API, stepped one observable event at a time. Forty experts claim, grade, trip attention checks and abandon leases; a reviewer spot-checks every grade; a period closes and the dataset is exported."
+      lede={`The 500-task scenario that sim/demo.py drives against the HTTP API, replayed under the ${PORTED_SERVICE_VERSION} rules and stepped one observable event at a time. Forty experts claim, grade, trip attention checks and abandon leases; a reviewer spot-checks every grade; a period closes and the dataset is exported.`}
     >
       <div className="cols">
         <Card
@@ -230,7 +230,9 @@ export function FullRunSection() {
         <Card title="Summary block">
           {summary === null ? (
             <p className="empty">
-              The run prints the same block as <code className="code">sim/demo.py</code> when it finishes.
+              The run prints the {PORTED_SERVICE_VERSION} summary block when it finishes: the lines{" "}
+              <code className="code">sim/demo.py</code> printed at that release, up to the delivery, without
+              the tier, adjudication and ops lines the current demo adds.
             </p>
           ) : (
             <pre className="summary-block" tabIndex={0} aria-label="Demo summary block">
