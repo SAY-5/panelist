@@ -19,13 +19,11 @@ from panelist.models import (
     TaskStatus,
 )
 from panelist.services import audit, calibration, payouts
+from panelist.services.errors import ServiceError
 
 
-class ConsensusError(Exception):
-    def __init__(self, status_code: int, detail: str):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.detail = detail
+class ConsensusError(ServiceError):
+    pass
 
 
 @dataclass

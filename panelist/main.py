@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Response
+from fastapi import Depends, FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -22,6 +23,7 @@ from panelist.routers import (
     rubrics,
     tasks,
 )
+from panelist.services.errors import ServiceError
 
 log = get_logger("panelist")
 
@@ -42,6 +44,13 @@ app = FastAPI(
     description="Expert grading and data delivery platform for LLM responses.",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(ServiceError)
+async def service_error(_: Request, exc: ServiceError) -> JSONResponse:
+    """Map a service error to its status; the request session is already closed by now."""
+    return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
 
 for r in (
     experts,

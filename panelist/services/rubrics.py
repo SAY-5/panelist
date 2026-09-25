@@ -7,13 +7,11 @@ from sqlalchemy.orm import Session
 
 from panelist.models import Rubric, RubricCriterion, Task, TaskStatus
 from panelist.services import audit
+from panelist.services.errors import ServiceError
 
 
-class RubricError(Exception):
-    def __init__(self, status_code: int, detail: str):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.detail = detail
+class RubricError(ServiceError):
+    pass
 
 
 def publish(

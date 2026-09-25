@@ -40,11 +40,7 @@ def close_period(
     db: Session = Depends(get_db),
     principal: Principal = Depends(require_scopes("payouts:write")),
 ):
-    try:
-        period = payouts.close_period(db, body.label, principal.actor)
-    except payouts.PayoutError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, e.detail) from e
+    period = payouts.close_period(db, body.label, principal.actor)
     db.commit()
     return payouts.period_totals(db, period)
 

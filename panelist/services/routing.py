@@ -9,13 +9,11 @@ from panelist.config import get_settings
 from panelist.metrics import CLAIMS, DOUBLE_ASSIGN_BLOCKED
 from panelist.models import TIER_RANK, Expert, ExpertStatus, Grade, Task, TaskStatus, Tier
 from panelist.services import audit
+from panelist.services.errors import ServiceError
 
 
-class ClaimError(Exception):
-    def __init__(self, status_code: int, detail: str):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.detail = detail
+class ClaimError(ServiceError):
+    pass
 
 
 def _now() -> datetime:

@@ -44,11 +44,7 @@ def next_task(
     response: Response, db: Session = Depends(get_db), expert: Expert = Depends(current_expert)
 ):
     started = time.perf_counter()
-    try:
-        task = routing.claim_next(db, expert)
-    except routing.ClaimError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, e.detail) from e
+    task = routing.claim_next(db, expert)
     db.commit()
     ASSIGNMENT_LATENCY.observe(time.perf_counter() - started)
     if task is None:
@@ -85,11 +81,7 @@ def get_task(
 def claim_task(
     task_id: uuid.UUID, db: Session = Depends(get_db), expert: Expert = Depends(current_expert)
 ):
-    try:
-        task = routing.claim_by_id(db, expert, task_id)
-    except routing.ClaimError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, e.detail) from e
+    task = routing.claim_by_id(db, expert, task_id)
     db.commit()
     return task
 
@@ -98,9 +90,5 @@ def claim_task(
 def release_task(
     task_id: uuid.UUID, db: Session = Depends(get_db), expert: Expert = Depends(current_expert)
 ):
-    try:
-        routing.release(db, expert, task_id)
-    except routing.ClaimError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, e.detail) from e
+    routing.release(db, expert, task_id)
     db.commit()
