@@ -26,7 +26,6 @@ class ExpertCreate(BaseModel):
     tags: list[str] = Field(min_length=1)
     tier: Tier = Tier.junior
     task_rate_cents: int | None = None
-    hourly_rate_cents: int | None = None
 
 
 class ExpertOut(ORMModel):
@@ -35,7 +34,6 @@ class ExpertOut(ORMModel):
     tags: list[str]
     tier: Tier
     task_rate_cents: int | None
-    hourly_rate_cents: int | None
     status: ExpertStatus
     served_count: int
     calibration_score: float | None = None

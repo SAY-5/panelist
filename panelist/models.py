@@ -86,7 +86,6 @@ class Expert(Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(String(64)), default=list)
     tier: Mapped[Tier] = mapped_column(Enum(Tier, name="tier"), default=Tier.junior)
     task_rate_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    hourly_rate_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[ExpertStatus] = mapped_column(
         Enum(ExpertStatus, name="expert_status"), default=ExpertStatus.active
     )

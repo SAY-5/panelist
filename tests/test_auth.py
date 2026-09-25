@@ -1,3 +1,5 @@
+import uuid
+
 from tests.helpers import h, make_expert, setup_rubric
 
 
@@ -74,3 +76,22 @@ def test_reviewer_key_issued_by_admin_works(client, admin_key):
     assert key.startswith("pk_reviewer_")
     assert client.get("/payouts/ledger", headers=h(key)).status_code == 200
     assert client.post("/admin/api-keys", json={"role": "admin"}, headers=h(key)).status_code == 403
+
+
+def test_revoked_key_stops_working(client, admin_key):
+    issued = client.post(
+        "/admin/api-keys", json={"role": "reviewer", "label": "leaked"}, headers=h(admin_key)
+    ).json()
+    assert client.get("/payouts/ledger", headers=h(issued["key"])).status_code == 200
+    assert (
+        client.delete(f"/admin/api-keys/{issued['id']}", headers=h(issued["key"])).status_code
+        == 403
+    )
+
+    assert client.delete(f"/admin/api-keys/{issued['id']}", headers=h(admin_key)).status_code == 204
+    assert client.get("/payouts/ledger", headers=h(issued["key"])).status_code == 401
+    assert client.delete(f"/admin/api-keys/{issued['id']}", headers=h(admin_key)).status_code == 204
+    assert client.delete(f"/admin/api-keys/{uuid.uuid4()}", headers=h(admin_key)).status_code == 404
+
+    trail = client.get("/ops/audit.csv?action=apikey.revoked", headers=h(admin_key)).text
+    assert trail.count("apikey.revoked") == 1 and issued["id"] in trail

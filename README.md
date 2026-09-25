@@ -132,6 +132,8 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | GET | `/deliveries/{version}/verify` | deliveries:read | Read the stored object back and recompute its sha256, row count and size |
 | GET | `/ops/overview` | tasks:read | Queue depth by tag, paused experts, adjudication backlog, period status, last delivery |
 | GET | `/ops/audit.csv` | admin | Audit trail as CSV, filterable by action and start time |
+| POST | `/admin/api-keys` | admin | Issue a reviewer, senior reviewer or admin key |
+| DELETE | `/admin/api-keys/{id}` | admin | Revoke a key; it fails authentication from the next request on |
 | GET | `/metrics` | none | Prometheus metrics |
 | GET | `/healthz` | none | Liveness with a database round trip |
 
