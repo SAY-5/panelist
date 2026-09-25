@@ -1,7 +1,10 @@
+import json
 import uuid
+from pathlib import Path
 
+from panelist.cli import main as cli_main
 from panelist.models import Grade, GradeScore, Task, TaskStatus
-from tests.helpers import claim, grade, h, make_expert, make_tasks, setup_rubric
+from tests.helpers import claim, grade, h, make_expert, make_tasks, review, setup_rubric
 
 
 def test_scores_are_validated_against_rubric(client, admin_key):
@@ -91,3 +94,33 @@ def test_expert_view_hides_attention_fields(client, admin_key, settings):
     assert "is_attention_check" not in got and "expected_scores" not in got
     admin_view = client.get(f"/tasks/{tid}", headers=h(admin_key)).json()
     assert admin_view["is_attention_check"] is True
+
+
+def test_rejected_single_grader_task_returns_to_the_queue(client, admin_key, reviewer_key, capsys):
+    rubric = setup_rubric(client, admin_key)
+    (tid,) = make_tasks(client, admin_key, rubric, [{"external_ref": "again"}])
+    _, a = make_expert(client, admin_key, "A", ["python"])
+    _, b = make_expert(client, admin_key, "B", ["python"])
+    c_expert, c = make_expert(client, admin_key, "C", ["python"])
+    for key in (a, b):
+        assert claim(client, key)["id"] == tid
+        g = grade(client, key, tid, {"accuracy": 1, "clarity": 1, "safety": 1})
+        review(client, reviewer_key, g["id"], "reject", "off")
+        task = client.get(f"/tasks/{tid}", headers=h(admin_key)).json()
+        assert task["status"] == "queued" and task["grades_received"] == 0
+        assert claim(client, key) is None  # never served back to the expert it rejected
+
+    assert cli_main(["tick"]) == 0
+    tick = json.loads(capsys.readouterr().out)
+    assert tick["rejected_twice"] == 1
+    assert "1 tasks have been rejected twice and are back in the queue" in tick["reminders"]
+
+    assert claim(client, c)["id"] == tid
+    third = grade(client, c, tid)
+    assert client.get(f"/tasks/{tid}", headers=h(admin_key)).json()["status"] == "submitted"
+    review(client, reviewer_key, third["id"], "approve")
+    assert client.get(f"/tasks/{tid}", headers=h(admin_key)).json()["status"] == "approved"
+    export = client.get("/deliveries/export", headers=h(admin_key)).json()
+    rows = [json.loads(line) for line in Path(export["location"]).read_text().splitlines()]
+    assert [r["expert_id"] for r in rows] == [c_expert["id"]]
+    assert rows[0]["consensus"] is None  # the two rejected grades never formed a round

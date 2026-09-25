@@ -1,6 +1,6 @@
 """Grade submission and review decisions."""
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from panelist.metrics import GRADES
@@ -90,6 +90,36 @@ def submit(
     return grade
 
 
+def _requeue(db: Session, task: Task, rejected: Grade, actor: str) -> None:
+    """A rejected single-grader task goes back to the queue for a different expert.
+
+    The rejected grade stays on record and keeps its author from being served the task
+    again; `grades_received` is put back so the next grade completes the task.
+    """
+    task.status = TaskStatus.queued
+    task.grades_received = max(0, task.grades_received - 1)
+    audit.record(
+        db,
+        actor,
+        "task.requeued",
+        "task",
+        task.id,
+        {"rejected_grade_id": str(rejected.id), "rejections": rejections(db, task.id)},
+    )
+
+
+def rejections(db: Session, task_id) -> int:
+    """How many grades on the task a reviewer has rejected."""
+    return int(
+        db.scalar(
+            select(func.count(Review.id))
+            .join(Grade, Grade.id == Review.grade_id)
+            .where(Grade.task_id == task_id, Review.decision == ReviewDecision.reject)
+        )
+        or 0
+    )
+
+
 def _pin_conflict(given: Rubric | None, pinned: Rubric) -> str:
     if given is None:
         return f"unknown rubric; task is pinned to version {pinned.version}"
@@ -125,6 +155,8 @@ def review(db: Session, reviewer_key_id, grade_id, decision: ReviewDecision, rea
     if not task.is_attention_check:
         if decision == ReviewDecision.approve:
             task.status = TaskStatus.approved
+        elif task.required_grades == 1:
+            _requeue(db, task, grade, actor)
         elif task.status != TaskStatus.approved:
             task.status = TaskStatus.rejected
     if decision == ReviewDecision.reject:

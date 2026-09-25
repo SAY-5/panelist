@@ -234,7 +234,7 @@ check(
   platform.review(g1.id, "reject", "spot check failed");
   platform.review(g2.id, "approve");
   check("rejected grades are not paid", platform.payouts.length === 1 && platform.payouts[0]?.gradeId === g2.id);
-  check("rejected non-golden task is marked rejected", r1.task.isAttentionCheck || r1.task.status === "rejected");
+  check("rejected single-grader task returns to the queue", r1.task.isAttentionCheck || (r1.task.status === "queued" && r1.task.gradesReceived === 0));
   let twice = false;
   try {
     platform.review(g2.id, "approve");

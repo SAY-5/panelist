@@ -43,7 +43,7 @@ function describe(e: DemoEvent): string {
     case "review-rejected":
       return `${e.expert} rejected on ${e.ref}, drift ${e.drift.toFixed(2)} from the known answer`;
     case "reviewed":
-      return `${e.approved} approved, ${e.rejected} rejected`;
+      return `${e.approved} approved, ${e.rejected} rejected, ${e.regraded} regraded after a rejection`;
     case "period":
       return `${e.label}: ${e.payouts} payouts, ${money(e.totalCents)} to ${e.experts} experts, ${money(e.withheldCents)} withheld`;
     case "delivery":

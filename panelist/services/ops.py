@@ -10,9 +10,12 @@ from panelist.models import (
     Delivery,
     Expert,
     ExpertStatus,
+    Grade,
     Payout,
     PayoutPeriod,
     PayoutStatus,
+    Review,
+    ReviewDecision,
     Task,
     TaskStatus,
 )
@@ -36,6 +39,24 @@ def _expired_leases(db: Session) -> int:
         )
         or 0
     )
+
+
+def _rejected_twice(db: Session) -> int:
+    """Single-grader tasks a reviewer has sent back to the queue at least twice."""
+    per_task = (
+        select(Grade.task_id)
+        .join(Review, Review.grade_id == Grade.id)
+        .join(Task, Task.id == Grade.task_id)
+        .where(
+            Review.decision == ReviewDecision.reject,
+            Task.required_grades == 1,
+            Task.is_attention_check.is_(False),
+        )
+        .group_by(Grade.task_id)
+        .having(func.count(Review.id) >= 2)
+        .subquery()
+    )
+    return int(db.scalar(select(func.count()).select_from(per_task)) or 0)
 
 
 def _period_status(db: Session) -> dict:
@@ -81,7 +102,9 @@ def _days_since(moment: datetime | None) -> float | None:
     return (datetime.now(UTC) - moment).total_seconds() / 86400
 
 
-def _reminders(settings, uncalibrated: int, period: dict, backlog: int) -> list[str]:
+def _reminders(
+    settings, uncalibrated: int, period: dict, backlog: int, rejected_twice: int
+) -> list[str]:
     age = _days_since(period["closed_at"])
     out = []
     if uncalibrated:
@@ -97,6 +120,8 @@ def _reminders(settings, uncalibrated: int, period: dict, backlog: int) -> list[
         )
     if backlog:
         out.append(f"{backlog} tasks are waiting for adjudication")
+    if rejected_twice:
+        out.append(f"{rejected_twice} tasks have been rejected twice and are back in the queue")
     return out
 
 
@@ -122,6 +147,7 @@ def tick(db: Session, actor: str = "system:tick") -> dict:
 
     period = _period_status(db)
     backlog = consensus.backlog(db)
+    rejected_twice = _rejected_twice(db)
     audit.record(
         db,
         actor,
@@ -140,5 +166,6 @@ def tick(db: Session, actor: str = "system:tick") -> dict:
         "unbilled_payouts": period["unbilled_payouts"],
         "unbilled_cents": period["unbilled_cents"],
         "days_since_period_close": None if age is None else round(age, 2),
-        "reminders": _reminders(settings, uncalibrated, period, backlog),
+        "rejected_twice": rejected_twice,
+        "reminders": _reminders(settings, uncalibrated, period, backlog, rejected_twice),
     }

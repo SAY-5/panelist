@@ -41,6 +41,18 @@ def grades_for(db: Session, task_id) -> list[Grade]:
     )
 
 
+def _unrejected(db: Session, task_id) -> list[Grade]:
+    """Grades still in play: a grade a reviewer rejected never joins a consensus round."""
+    rejected = set(
+        db.scalars(
+            select(Review.grade_id)
+            .join(Grade, Grade.id == Review.grade_id)
+            .where(Grade.task_id == task_id, Review.decision == ReviewDecision.reject)
+        ).all()
+    )
+    return [g for g in grades_for(db, task_id) if g.id not in rejected]
+
+
 def _closest_to_mean(grades: list[Grade]) -> Grade:
     mean = sum(g.weighted_score for g in grades) / len(grades)
     return min(grades, key=lambda g: (abs(g.weighted_score - mean), g.submitted_at, g.id))
@@ -49,7 +61,7 @@ def _closest_to_mean(grades: list[Grade]) -> Grade:
 def evaluate(db: Session, task: Task) -> Consensus | None:
     """Score the completed grades on a task: agree within tolerance, or open an adjudication."""
     settings = get_settings()
-    grades = grades_for(db, task.id)
+    grades = _unrejected(db, task.id)
     if len(grades) < 2:
         return None
     scores = [g.weighted_score for g in grades]

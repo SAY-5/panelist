@@ -74,7 +74,8 @@ def test_rejection_creates_no_payout(client, admin_key, reviewer_key, db):
     r = review(client, reviewer_key, g["id"], decision="reject", reason="rationale too thin")
     assert r["payout_id"] is None
     assert db.scalar(select(func.count(Payout.id))) == 0
-    assert client.get(f"/tasks/{tid}", headers=h(admin_key)).json()["status"] == "rejected"
+    task = client.get(f"/tasks/{tid}", headers=h(admin_key)).json()
+    assert task["status"] == "queued" and task["grades_received"] == 0  # back for another expert
 
 
 def test_period_close_totals_match_ledger(client, admin_key, reviewer_key, db):

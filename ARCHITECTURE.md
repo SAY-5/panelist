@@ -12,7 +12,7 @@
 
 `POST /tasks/{id}/claim` uses the same lock. If the row is locked or already assigned the call returns 409 and increments `panelist_double_assignment_blocked_total`.
 
-Tasks with `required_grades > 1` return to `queued` after each grade until enough grades exist; the "already graded by this expert" predicate keeps them from bouncing back to the same person.
+Tasks with `required_grades > 1` return to `queued` after each grade until enough grades exist; the "already graded by this expert" predicate keeps them from bouncing back to the same person. A single-grader task whose grade a reviewer rejects also returns to `queued`, with `grades_received` put back, so a different expert grades it next; the rejected grade stays on record, never joins a consensus round and is never delivered. `panelist tick` lists tasks that have been sent back twice.
 
 ## Rubric versions
 

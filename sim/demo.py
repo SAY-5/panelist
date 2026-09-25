@@ -343,6 +343,22 @@ def main(argv=None) -> int:
 
     reviewer = client(reviewer_key)
     approved, rejected = review_all(reviewer, tasks_by_id)
+    # Rejected single-grader tasks are back in the queue: another expert grades them.
+    regraded = 0
+    for _ in range(3):
+        with ThreadPoolExecutor(max_workers=len(world.experts)) as pool:
+            list(
+                pool.map(
+                    lambda e: run_expert(e, world, stats, tasks_by_id),
+                    [e for e in world.experts if not e.paused],
+                )
+            )
+        more_approved, more_rejected = review_all(reviewer, tasks_by_id)
+        regraded += more_approved + more_rejected
+        approved += more_approved
+        rejected += more_rejected
+        if more_rejected == 0:
+            break
     senior = client(senior_key)
     adjudicated, outvoted = adjudicate_all(senior, tasks_by_id)
     period = admin.post("/payouts/periods/close", json={"label": "2026-09-A"}).json()
@@ -401,7 +417,7 @@ def main(argv=None) -> int:
     print(f"experts paused: {len(paused)} {paused}")
     print(
         f"grades stored: {int(float(metric('panelist_grades_total')))}"
-        f"  approved: {approved}  rejected: {rejected}"
+        f"  approved: {approved}  rejected: {rejected}  regraded after rejection: {regraded}"
     )
     order = ["junior", "senior", "lead"]
     ups = sum(1 for m in moves if order.index(m["to_tier"]) > order.index(m["from_tier"]))
@@ -509,6 +525,7 @@ def main(argv=None) -> int:
                 "grades_stored": int(float(metric("panelist_grades_total"))),
                 "approved": approved,
                 "rejected": rejected,
+                "regraded_after_rejection": regraded,
                 "tier_moves": len(moves),
                 "tier_moves_up": ups,
                 "experts_by_tier": counts,

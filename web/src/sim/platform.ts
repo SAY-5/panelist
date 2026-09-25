@@ -578,7 +578,12 @@ export class Platform {
     if (decision === "approve") payout = this.createPayout(grade, task, actor);
     if (!task.isAttentionCheck) {
       if (decision === "approve") task.status = "approved";
-      else if (task.status !== "approved") task.status = "rejected";
+      else if (task.requiredGrades === 1) {
+        // A rejected single-grader task goes back to the queue for a different expert.
+        task.status = "queued";
+        task.gradesReceived = Math.max(0, task.gradesReceived - 1);
+        this.record(actor, "task.requeued", "task", task.id, { rejected_grade_id: grade.id });
+      } else if (task.status !== "approved") task.status = "rejected";
     }
     this.record(actor, `grade.${decision}`, "grade", grade.id, { reason });
     return { grade, payout };

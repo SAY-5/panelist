@@ -42,7 +42,7 @@ export type DemoEvent =
   | { kind: "grade-conflict"; expert: string; ref: string }
   | { kind: "sweep"; reclaimed: number }
   | { kind: "review-rejected"; expert: string; ref: string; drift: number }
-  | { kind: "reviewed"; approved: number; rejected: number }
+  | { kind: "reviewed"; approved: number; rejected: number; regraded: number }
   | { kind: "period"; label: string; payouts: number; totalCents: number; experts: number; withheldCents: number }
   | { kind: "delivery"; version: number; rows: number; bytes: number; checksum: string }
   | { kind: "done" };
@@ -69,6 +69,7 @@ export interface DemoStats {
   grades: number;
   approved: number;
   rejected: number;
+  regraded: number;
   payouts: number;
   totalActions: number;
 }
@@ -84,8 +85,8 @@ function newStats(): DemoStats {
   return {
     claims: 0, empty: 0, routedByTag: {}, mismatches: 0, doubleAttempts: 0, doubleBlocked: 0,
     concurrentFirstClaims: 0, uniqueFirstClaims: 0, reclaims: 0, adminSweepReclaimed: 0,
-    checksServed: 0, checksFailed: 0, paused: [], grades: 0, approved: 0, rejected: 0, payouts: 0,
-    totalActions: 0,
+    checksServed: 0, checksFailed: 0, paused: [], grades: 0, approved: 0, rejected: 0, regraded: 0,
+    payouts: 0, totalActions: 0,
   };
 }
 
@@ -239,6 +240,22 @@ function* gradingPass(workers: Worker[], platform: Platform, stats: DemoStats, t
   }
 }
 
+function* reviewPass(platform: Platform, stats: DemoStats, tasksById: Map<string, SimTask>): Generator<DemoEvent, void> {
+  for (const g of platform.unreviewedGrades()) {
+    const sim = tasksById.get(g.taskId);
+    if (!sim) continue;
+    const drift = Math.abs(g.weightedScore - weighted(sim.trueScores));
+    if (drift > 1.5) {
+      platform.review(g.id, "reject", "spot check failed");
+      stats.rejected += 1;
+      yield { kind: "review-rejected", expert: platform.expert(g.expertId).name, ref: platform.task(g.taskId).externalRef, drift };
+    } else {
+      platform.review(g.id, "approve");
+      stats.approved += 1;
+    }
+  }
+}
+
 function* runSteps(opts: DemoOptions, world: World, platform: Platform, stats: DemoStats): Generator<DemoEvent, DemoSummary> {
   const golden = world.tasks.filter((t) => t.payload.isAttentionCheck).length;
   yield { kind: "phase", name: "seed" };
@@ -266,21 +283,18 @@ function* runSteps(opts: DemoOptions, world: World, platform: Platform, stats: D
   yield* gradingPass(workers.filter((w) => !w.sim.paused), platform, stats, tasksById, opts.actionMs);
 
   yield { kind: "phase", name: "review" };
-  for (const g of platform.unreviewedGrades()) {
-    const sim = tasksById.get(g.taskId);
-    if (!sim) continue;
-    const drift = Math.abs(g.weightedScore - weighted(sim.trueScores));
-    if (drift > 1.5) {
-      platform.review(g.id, "reject", "spot check failed");
-      stats.rejected += 1;
-      yield { kind: "review-rejected", expert: platform.expert(g.expertId).name, ref: platform.task(g.taskId).externalRef, drift };
-    } else {
-      platform.review(g.id, "approve");
-      stats.approved += 1;
-    }
+  yield* reviewPass(platform, stats, tasksById);
+  // Rejected single-grader tasks are back in the queue: active experts grade them, the reviewer looks again.
+  for (let round = 0; round < 3; round++) {
+    const before = stats.approved + stats.rejected;
+    const rejectedBefore = stats.rejected;
+    yield* gradingPass(workers.filter((w) => !w.sim.paused), platform, stats, tasksById, opts.actionMs);
+    yield* reviewPass(platform, stats, tasksById);
+    stats.regraded += stats.approved + stats.rejected - before;
+    if (stats.rejected === rejectedBefore) break;
   }
   stats.payouts = platform.payouts.length;
-  yield { kind: "reviewed", approved: stats.approved, rejected: stats.rejected };
+  yield { kind: "reviewed", approved: stats.approved, rejected: stats.rejected, regraded: stats.regraded };
 
   yield { kind: "phase", name: "payouts" };
   const period = platform.closePeriod("2026-09-A");
@@ -316,6 +330,7 @@ function* runSteps(opts: DemoOptions, world: World, platform: Platform, stats: D
     gradesStored: platform.metrics.gradesTotal,
     approved: stats.approved,
     rejected: stats.rejected,
+    regraded: stats.regraded,
     taskStatus: platform.queueSummary(),
     payoutsCreated: platform.payouts.length,
     period,

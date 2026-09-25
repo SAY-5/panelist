@@ -29,6 +29,7 @@ export interface DemoSummary {
   gradesStored: number;
   approved: number;
   rejected: number;
+  regraded: number;
   taskStatus: Record<TaskStatus, number>;
   payoutsCreated: number;
   period: PeriodTotals;
@@ -80,7 +81,7 @@ export function formatSummary(s: DemoSummary, timing: Timing | null = null): str
     `expired leases reclaimed: ${s.reclaims} (admin sweep: ${s.adminSweepReclaimed})`,
     `attention checks served: ${s.checksServed}  failed: ${s.checksFailed}`,
     `experts paused: ${s.paused.length} ${pyList(s.paused)}`,
-    `grades stored: ${s.gradesStored}  approved: ${s.approved}  rejected: ${s.rejected}`,
+    `grades stored: ${s.gradesStored}  approved: ${s.approved}  rejected: ${s.rejected}  regraded after rejection: ${s.regraded}`,
     `task status: ${pyDict(s.taskStatus)}`,
     `payouts created: ${s.payoutsCreated}  statement ${s.period.label}: ${s.period.payoutCount} payouts, ${dollars(s.period.totalCents)} to ${s.period.expertCount} experts`,
     `payout ledger: ${pyDict(s.ledger.totalsByStatus)}  withheld: ${dollars(s.ledger.totalsByStatus.withheld)}`,
