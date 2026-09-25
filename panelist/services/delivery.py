@@ -15,8 +15,8 @@ from panelist.services import audit
 
 def _rows(db: Session):
     """One row per delivered grade: consensus tasks deliver only the grade that was chosen."""
-    grades = db.scalars(
-        select(Grade)
+    rows = db.execute(
+        select(Grade, Consensus)
         .join(Review, Review.grade_id == Grade.id)
         .join(Task, Task.id == Grade.task_id)
         .outerjoin(Consensus, Consensus.task_id == Task.id)
@@ -27,10 +27,8 @@ def _rows(db: Session):
         )
         .order_by(Task.seq, Grade.expert_id)
     ).all()
-    rounds = {c.task_id: c for c in db.scalars(select(Consensus)).all()}
-    for g in grades:
+    for g, round_ in rows:
         task = g.task
-        round_ = rounds.get(task.id)
         yield {
             "task_id": str(task.id),
             "external_ref": task.external_ref,

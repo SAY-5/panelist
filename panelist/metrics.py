@@ -36,6 +36,9 @@ ADJUDICATION_BACKLOG = Gauge("panelist_adjudication_backlog", "Tasks waiting for
 PAUSED_EXPERTS = Gauge("panelist_paused_experts", "Experts currently paused")
 EXPERTS_BY_TIER = Gauge("panelist_experts_by_tier", "Experts by current tier", ["tier"])
 
+# Tags that have had a queue depth gauge, so a tag whose queue drains reads 0 rather than vanishing.
+_queue_tags: set[str] = set()
+
 
 def refresh_gauges(db) -> None:
     rows = db.execute(
@@ -43,13 +46,12 @@ def refresh_gauges(db) -> None:
         .where(Task.status == TaskStatus.queued)
         .group_by("tag")
     ).all()
-    seen = set()
+    seen = {tag for tag, _ in rows}
     for tag, count in rows:
         QUEUE_DEPTH.labels(tag=tag).set(count)
-        seen.add(tag)
-    for labels in list(QUEUE_DEPTH._metrics):
-        if labels[0] not in seen:
-            QUEUE_DEPTH.labels(tag=labels[0]).set(0)
+    for tag in _queue_tags - seen:
+        QUEUE_DEPTH.labels(tag=tag).set(0)
+    _queue_tags.update(seen)
 
     balances = db.execute(
         select(Payout.status, func.coalesce(func.sum(Payout.amount_cents), 0)).group_by(
