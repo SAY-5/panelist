@@ -537,7 +537,7 @@ def main(argv=None) -> int:
                     "claims": len(lat),
                     "p50_ms": round(p50 * 1000, 1),
                     "p95_ms": round(p95 * 1000, 1),
-                    "note": "measured client side: 40 threads against one in-process uvicorn worker",
+                    "note": f"client side, {len(world.experts)} threads, one in-process worker",
                 },
                 "ops_overview": {
                     "queued_by_tag": overview["queued_by_tag"],
