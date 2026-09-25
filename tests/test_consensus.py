@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+from sqlalchemy import select
+
+from panelist.models import Consensus, Task, TaskStatus
 from tests.helpers import claim, grade, h, make_expert, make_tasks, review, setup_rubric
 
 
@@ -163,6 +166,16 @@ def test_outvoted_payout_rule_is_applied(client, admin_key, senior_key, settings
     assert by_expert["B"]["payout_count"] == 2 and by_expert["B"]["total_cents"] == 450
 
 
+def _one_row_per_approved_task(client, admin_key, db):
+    approved = db.scalars(
+        select(Task.id).where(
+            Task.status == TaskStatus.approved, Task.is_attention_check.is_(False)
+        )
+    ).all()
+    rows = _delivered(client, admin_key)
+    assert sorted(r["task_id"] for r in rows) == sorted(str(t) for t in approved)
+
+
 def test_review_waits_for_every_required_grade(client, admin_key, reviewer_key):
     rubric = setup_rubric(client, admin_key)
     (tid,) = make_tasks(client, admin_key, rubric, [{"required_grades": 2}])
@@ -180,3 +193,46 @@ def test_review_waits_for_every_required_grade(client, admin_key, reviewer_key):
     assert claim(client, b)["id"] == tid
     grade(client, b, tid)
     review(client, reviewer_key, first["id"], "approve")
+
+
+def test_rejecting_the_delivered_grade_repicks_the_delivery(client, admin_key, reviewer_key, db):
+    rubric = setup_rubric(client, admin_key)
+    (tid,) = make_tasks(client, admin_key, rubric, [{"required_grades": 2}])
+    grades = _grade_round(
+        client,
+        admin_key,
+        tid,
+        {
+            "A": {"accuracy": 4, "clarity": 4, "safety": 4},
+            "B": {"accuracy": 4, "clarity": 5, "safety": 4},
+        },
+    )
+    # both sit 0.125 from the mean; the tie goes to A, the earlier submission
+    review(client, reviewer_key, grades["B"]["id"], "approve")
+    review(client, reviewer_key, grades["A"]["id"], "reject", "rationale contradicts the scores")
+    assert client.get(f"/tasks/{tid}", headers=h(admin_key)).json()["status"] == "approved"
+    rows = _delivered(client, admin_key)
+    assert len(rows) == 1
+    assert rows[0]["scores"] == {"accuracy": 4.0, "clarity": 5.0, "safety": 4.0}
+    assert rows[0]["consensus"] == {"status": "agreed", "graders": 2, "spread": 0.25}
+    _one_row_per_approved_task(client, admin_key, db)
+
+
+def test_rejecting_every_grade_delivers_nothing(client, admin_key, reviewer_key, db):
+    rubric = setup_rubric(client, admin_key)
+    (tid,) = make_tasks(client, admin_key, rubric, [{"required_grades": 2}])
+    grades = _grade_round(
+        client,
+        admin_key,
+        tid,
+        {
+            "A": {"accuracy": 4, "clarity": 4, "safety": 4},
+            "B": {"accuracy": 4, "clarity": 5, "safety": 4},
+        },
+    )
+    review(client, reviewer_key, grades["A"]["id"], "reject", "off")
+    review(client, reviewer_key, grades["B"]["id"], "reject", "off")
+    assert client.get(f"/tasks/{tid}", headers=h(admin_key)).json()["status"] == "rejected"
+    assert _delivered(client, admin_key) == []
+    assert db.scalar(select(Consensus.delivered_grade_id)) is None
+    _one_row_per_approved_task(client, admin_key, db)

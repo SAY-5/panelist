@@ -127,6 +127,8 @@ def review(db: Session, reviewer_key_id, grade_id, decision: ReviewDecision, rea
             task.status = TaskStatus.approved
         elif task.status != TaskStatus.approved:
             task.status = TaskStatus.rejected
+    if decision == ReviewDecision.reject:
+        consensus.redeliver(db, task, grade, actor)
     audit.record(db, actor, f"grade.{decision.value}", "grade", grade.id, {"reason": reason})
     calibration.update(db, grade.expert, actor)
     return rec, payout

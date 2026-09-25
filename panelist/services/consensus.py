@@ -80,6 +80,41 @@ def evaluate(db: Session, task: Task) -> Consensus | None:
     return row
 
 
+def redeliver(db: Session, task: Task, rejected: Grade, actor: str) -> Consensus | None:
+    """A reviewer rejected the grade an agreed round had selected: pick the delivery again.
+
+    Approved grades are preferred, then unreviewed ones; with nothing left the round
+    delivers no grade at all rather than a rejected one.
+    """
+    row = db.scalar(select(Consensus).where(Consensus.task_id == task.id).with_for_update())
+    if row is None or row.status != ConsensusStatus.agreed or row.delivered_grade_id != rejected.id:
+        return None
+    grades = grades_for(db, task.id)
+    decisions = dict(
+        db.execute(
+            select(Review.grade_id, Review.decision).where(
+                Review.grade_id.in_([g.id for g in grades])
+            )
+        ).all()
+    )
+    pool = [g for g in grades if decisions.get(g.id) != ReviewDecision.reject]
+    approved = [g for g in pool if decisions.get(g.id) == ReviewDecision.approve]
+    candidates = approved or pool
+    row.delivered_grade_id = _closest_to_mean(candidates).id if candidates else None
+    audit.record(
+        db,
+        actor,
+        "consensus.redelivered",
+        "task",
+        task.id,
+        {
+            "rejected": str(rejected.id),
+            "delivered": None if row.delivered_grade_id is None else str(row.delivered_grade_id),
+        },
+    )
+    return row
+
+
 def pending(db: Session, limit: int = 200) -> list[Consensus]:
     return list(
         db.scalars(
