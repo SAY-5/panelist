@@ -64,7 +64,8 @@ def test_export_changes_when_new_grade_is_approved(client, admin_key, reviewer_k
     rubric_id = json.loads(Path(before["location"]).read_text().splitlines()[0])["rubric"]["id"]
     (tid,) = make_tasks(client, admin_key, rubric_id, [{"external_ref": "t-9"}])
     _, key = make_expert(client, admin_key, "B", ["python"])
-    claim(client, key)
+    # t-2 was rejected and is back in the queue ahead of t-9, so claim t-9 by id
+    assert client.post(f"/tasks/{tid}/claim", headers=h(key)).status_code == 200
     g = grade(client, key, tid)
     review(client, reviewer_key, g["id"])
     after = client.get("/deliveries/export", headers=h(admin_key)).json()
