@@ -14,9 +14,10 @@ export function CompareCard({ summary }: { summary: DemoSummary | null }) {
         <div className="scroll-x">
           <table>
             <caption>
-              One service run, commit {REFERENCE_RUN.commit}, {REFERENCE_RUN.ranAt.slice(0, 10)}, against
-              this simulation. The service races 40 threads for rows, so its column is that run and
-              not a fixed result
+              One service run, commit {REFERENCE_RUN.commit}, {REFERENCE_RUN.ranAt.slice(0, 10)}, load
+              average {REFERENCE_RUN.loadAverageStart[0]?.toFixed(2)} at its start, against this
+              simulation. The service races 40 threads for rows, so its column is that run and not a
+              fixed result
             </caption>
             <thead>
               <tr>
