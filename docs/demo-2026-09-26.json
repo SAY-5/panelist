@@ -7,8 +7,18 @@
     "lease_seconds": 3
   },
   "environment": {
-    "commit": "df7ae50ab3f8b937534a7064988a0e1485e8e7ce",
+    "commit": "67dae0092424bf06d734b874e2aa6305f8f7cf5f",
     "cpu_count": 10,
+    "load_average_end": [
+      12.22,
+      12.55,
+      10.78
+    ],
+    "load_average_start": [
+      15.15,
+      12.99,
+      10.83
+    ],
     "machine": "Darwin 25.0.0 arm64",
     "panelist_version": "5.1.0",
     "postgres": "16.14",
@@ -19,51 +29,51 @@
     "golden": 50,
     "golden_share": 0.1,
     "seed": 7,
-    "started_at": "2026-09-27T00:30:51Z",
+    "started_at": "2026-09-27T05:39:20Z",
     "tasks": 500
   },
   "summary": {
-    "adjudications": 5,
+    "adjudications": 3,
     "admin_sweep_reclaimed": 0,
     "agreement": {
-      "compared_pairs": 332,
-      "exact_agreement": 0.5060240963855421,
-      "mean_abs_diff": 0.5602409638554217,
-      "multi_graded_tasks": 83,
-      "within_one": 0.9427710843373494
+      "compared_pairs": 328,
+      "exact_agreement": 0.5213414634146342,
+      "mean_abs_diff": 0.5670731707317073,
+      "multi_graded_tasks": 82,
+      "within_one": 0.9237804878048781
     },
-    "approved": 667,
+    "approved": 656,
     "attention_checks_failed": 4,
-    "attention_checks_served": 148,
+    "attention_checks_served": 132,
     "claim_latency": {
-      "claims": 797,
+      "claims": 780,
       "note": "client side, 40 threads, one in-process worker",
-      "p50_ms": 331.7,
-      "p95_ms": 540.0
+      "p50_ms": 301.2,
+      "p95_ms": 419.6
     },
-    "claims": 681,
+    "claims": 664,
     "claims_by_matched_tag": {
-      "biology": 95,
-      "finance": 88,
-      "law": 81,
-      "math": 111,
-      "medicine": 80,
-      "python": 80,
-      "security": 65,
-      "writing": 99
+      "biology": 94,
+      "finance": 80,
+      "law": 83,
+      "math": 106,
+      "medicine": 73,
+      "python": 78,
+      "security": 70,
+      "writing": 96
     },
     "concurrent_first_claims": 40,
     "criterion_means": {
-      "accuracy": 3.6651982378854626,
-      "clarity": 3.7386196769456683,
-      "completeness": 3.6255506607929515,
-      "safety": 3.5888399412628487
+      "accuracy": 3.6686746987951806,
+      "clarity": 3.7243975903614457,
+      "completeness": 3.6536144578313254,
+      "safety": 3.6069277108433737
     },
     "delivery": {
-      "location": "s3://panelist-deliveries/deliveries/panelist-grades-v1-8880674f5ac7.jsonl",
+      "location": "s3://panelist-deliveries/deliveries/panelist-grades-v1-847a92f671e2.jsonl",
       "row_count": 450,
-      "sha256": "8880674f5ac78b75b414354a38cf1534cf54a05ac30f0cb623865216bcec908f",
-      "size_bytes": 317832,
+      "sha256": "847a92f671e2778f7ee5c4c15044b3d5aaa1018c4231bb3f0a85cbea6e15f5b3",
+      "size_bytes": 317807,
       "version": 1
     },
     "double_attempts": 40,
@@ -78,12 +88,12 @@
       "expert-18"
     ],
     "expired_leases_reclaimed": 2,
-    "grades_stored": 681,
-    "grading_wall_seconds": 20.618,
+    "grades_stored": 664,
+    "grading_wall_seconds": 18.428,
     "ledger": {
-      "paid": 535500,
+      "paid": 520050,
       "pending": 0,
-      "withheld": 3900
+      "withheld": 2850
     },
     "ops_overview": {
       "adjudication_backlog": 0,
@@ -93,11 +103,11 @@
         "expert-18"
       ],
       "period": {
-        "closed_at": "2026-09-27T00:31:40.410908Z",
+        "closed_at": "2026-09-27T05:40:02.327587Z",
         "last_label": "2026-09-A",
         "unbilled_cents": 0,
         "unbilled_payouts": 0,
-        "withheld_cents": 3900
+        "withheld_cents": 2850
       },
       "queued_by_tag": {
         "biology": 12,
@@ -118,15 +128,15 @@
         "submitted": 0
       }
     },
-    "outvoted": 5,
-    "payouts_created": 677,
-    "regraded_after_rejection": 3,
-    "rejected": 4,
+    "outvoted": 3,
+    "payouts_created": 662,
+    "regraded_after_rejection": 1,
+    "rejected": 2,
     "statement": {
       "expert_count": 38,
       "label": "2026-09-A",
-      "payout_count": 666,
-      "total_cents": 535500
+      "payout_count": 653,
+      "total_cents": 520050
     },
     "tag_mismatches": 0,
     "task_status": {
@@ -140,7 +150,9 @@
     "tick": {
       "experts_scored": 40,
       "reclaimed": 0,
-      "reminders": [],
+      "reminders": [
+        "1 experts have fewer than 5 calibration signals"
+      ],
       "tier_changes": 0
     },
     "tier_moves": 47,
