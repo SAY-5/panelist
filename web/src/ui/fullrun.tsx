@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createDemo, DEFAULT_DEMO, DemoEvent, DemoRun, DemoSummary, formatSummary, NOTABLE, PORTED_SERVICE_VERSION } from "../sim";
 import { Card, Section, Stamp } from "./bits";
 import { money, pct, prefersReducedMotion } from "./format";
+import { RUN } from "./params";
 
 const ACCENT_KINDS = new Set(["paused", "review-rejected", "grade-conflict", "reclaimed"]);
 const LOG_LIMIT = 80;
@@ -64,6 +65,9 @@ export function FullRunSection() {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogRow[]>([]);
   const [summary, setSummary] = useState<DemoSummary | null>(null);
+  // One announcement per phase, and one when the run ends: the streaming log and the live
+  // counters are not announced, since four events a frame floods a screen reader.
+  const [announced, setAnnounced] = useState("");
 
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
@@ -83,10 +87,17 @@ export function FullRunSection() {
     for (let i = 0; i < count; i++) {
       const next = run.steps.next();
       if (next.done) {
-        setSummary(next.value);
+        const done = next.value;
+        setSummary(done);
+        setAnnounced(
+          `Run complete: ${done.claims} claims, ${done.gradesStored} grades, ${done.mismatches} tag mismatches, ` +
+            `${done.doubleBlocked} of ${done.doubleAttempts} steal attempts blocked, ${done.paused.length} experts paused, ` +
+            `${done.delivery.rowCount} delivery rows.`,
+        );
         finished = true;
         break;
       }
+      if (next.value.kind === "phase") setAnnounced(`phase: ${next.value.name}`);
       if (loggable(next.value)) {
         fresh.push({
           seq: ++seq.current,
@@ -134,6 +145,7 @@ export function FullRunSection() {
     setRunning(false);
     setLog([]);
     setSummary(null);
+    setAnnounced("");
     setTick((t) => t + 1);
   }
 
@@ -150,7 +162,7 @@ export function FullRunSection() {
       id="run"
       num="05"
       title="The full run, end to end"
-      lede={`The 500-task scenario that sim/demo.py drives against the HTTP API, replayed under the ${PORTED_SERVICE_VERSION} rules and stepped one observable event at a time. Forty experts claim, grade, trip attention checks and abandon leases; a reviewer spot-checks every grade; a period closes and the dataset is exported.`}
+      lede={`The ${RUN.tasks}-task scenario that sim/demo.py drives against the HTTP API, replayed under the ${PORTED_SERVICE_VERSION} rules and stepped one observable event at a time. ${RUN.experts} experts claim, grade, trip attention checks and abandon leases; a reviewer spot-checks every grade; a period closes and the dataset is exported.`}
     >
       <div className="cols">
         <Card
@@ -161,7 +173,7 @@ export function FullRunSection() {
         >
           <div className="controls tight">
             <button type="button" className="primary" onClick={start} disabled={running || summary !== null}>
-              {started && !summary ? "Resume" : "Run 500 tasks"}
+              {started && !summary ? "Resume" : `Run ${RUN.tasks} tasks`}
             </button>
             <button type="button" onClick={pause} disabled={!running}>
               Pause
@@ -175,10 +187,12 @@ export function FullRunSection() {
             <i style={{ width: `${Math.round(drained * 100)}%` }} />
           </div>
           <p className="card-note">
-            {started ? `${Math.round(drained * 100)}% of the non-golden queue drained` : "seed 7, 40 experts, 500 tasks, 3 second leases"}
+            {started
+              ? `${Math.round(drained * 100)}% of the non-golden queue drained`
+              : `seed ${RUN.seed}, ${RUN.experts} experts, ${RUN.tasks} tasks, ${RUN.leaseSeconds} second leases`}
           </p>
 
-          <div className="run-stats" role="group" aria-label="Live run counters" aria-live="polite">
+          <div className="run-stats" role="group" aria-label="Run counters">
             <dl className="kv">
               <dt>claims</dt>
               <dd>{stats?.claims ?? 0}</dd>
@@ -210,7 +224,7 @@ export function FullRunSection() {
           {log.length === 0 ? (
             <p className="empty">Start the run to see phases, contention, reclaimed leases, failed checks, pauses, rejections and the export.</p>
           ) : (
-            <div className="log" ref={logRef} aria-live="polite" aria-relevant="additions">
+            <div className="log" ref={logRef}>
               {log.map((r) => (
                 <div key={r.seq} className={`log-row${r.accent ? " is-accent" : ""} row-in`}>
                   <span className="log-seq">{r.seq}</span>
@@ -222,6 +236,9 @@ export function FullRunSection() {
           )}
           <p className="card-note">
             Passing attention checks are not logged; failures, pauses, reclaims and rejections are.
+          </p>
+          <p className="sr" role="status">
+            {announced}
           </p>
         </Card>
       </div>

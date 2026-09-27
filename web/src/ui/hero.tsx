@@ -1,11 +1,18 @@
 import { Counter } from "./counter";
-import { useMeasuredRun } from "./demo";
+import { useSimulatedRun } from "./demo";
 import { money } from "./format";
+import { RUN } from "./params";
 import { PORTED_SERVICE_VERSION } from "../sim";
 
 export function Hero() {
-  const run = useMeasuredRun();
+  const run = useSimulatedRun();
   const s = run?.summary ?? null;
+  const spoken =
+    s === null
+      ? ""
+      : `Simulated run complete: ${s.claims} claims, ${s.mismatches} tag mismatches, ` +
+        `${s.doubleBlocked} of ${s.doubleAttempts} double claims blocked, ${s.paused.length} experts paused, ` +
+        `${money(s.period.totalCents)} in the statement, ${s.delivery.rowCount} delivery rows.`;
 
   return (
     <header className="hero">
@@ -19,24 +26,27 @@ export function Hero() {
           tag-routed queue, score model output against a versioned rubric, are paid per approved
           grade, and whose approved grades ship as checksummed JSONL. Everything on this page is
           the {PORTED_SERVICE_VERSION} service layer (routing, grading, attention, payouts, analytics,
-          delivery) ported to TypeScript and run right here: no server, no network, a seeded
-          generator and a virtual clock in place of the wall clock.
+          delivery) ported to TypeScript and run right here: no backend and no API calls, a seeded
+          generator and a virtual clock in place of the wall clock. The only request this page makes
+          is for the two webfonts it sets in Fraunces and IBM Plex Mono.
         </p>
         <p className="hero-meta">
-          <span>seed 7</span>
+          <span>seed {RUN.seed}</span>
           <span className="dot">/</span>
-          <span>40 experts</span>
+          <span>{RUN.experts} experts</span>
           <span className="dot">/</span>
-          <span>500 tasks, 50 golden</span>
+          <span>
+            {RUN.tasks} tasks, {RUN.golden} golden
+          </span>
           <span className="dot">/</span>
           <span>
             {run === null
-              ? "measuring the run"
-              : `run measured in this browser in ${run.elapsedMs.toFixed(0)} ms`}
+              ? "simulating the run"
+              : `simulated in this browser, compute time ${run.elapsedMs.toFixed(0)} ms`}
           </span>
         </p>
 
-        <div className="counters" role="group" aria-label="Measured results of the full run" aria-live="polite">
+        <div className="counters" role="group" aria-label={`Results of the simulated ${RUN.tasks}-task run`}>
           <Counter
             label="Claims routed"
             target={s ? s.claims : null}
@@ -84,6 +94,13 @@ export function Hero() {
             }
           />
         </div>
+        <p className="hero-note">
+          Deterministic simulation with its own PRNG, not a measurement of the service: the totals
+          differ from the PostgreSQL run in the README, the invariants hold in both.
+        </p>
+        <p className="sr" role="status">
+          {spoken}
+        </p>
       </div>
     </header>
   );

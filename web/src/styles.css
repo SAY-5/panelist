@@ -218,7 +218,7 @@ a:hover {
   color: var(--rule-2);
 }
 
-/* ---------- measured counters ----------------------------------------- */
+/* ---------- simulated-run counters ------------------------------------ */
 
 .counters {
   margin-top: 32px;
@@ -226,6 +226,14 @@ a:hover {
   border-left: 1px solid var(--rule);
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+}
+
+.hero-note {
+  margin-top: 14px;
+  max-width: 68ch;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-2);
 }
 
 .counter {

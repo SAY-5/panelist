@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Expert, ServiceError, Task } from "../sim";
 import { Card, Section, Stamp, Tag } from "./bits";
 import { hours, tick } from "./format";
+import { RUN } from "./params";
 import { useWorkbench } from "./workbench";
 
 interface RaceRow {
@@ -40,6 +41,7 @@ export function RoutingSection() {
   const now = platform.clock.now();
   const expert: Expert | null = platform.experts.find((e) => e.id === expertId) ?? platform.experts[0] ?? null;
   const queue = expert ? platform.candidates(expert).slice(0, 7) : [];
+  const depthByTag = platform.queueDepthByTag();
   const held = expert ? platform.tasks.filter((t) => t.assignedExpertId === expert.id) : [];
 
   // Recomputed every render: every section mutates the one shared platform.
@@ -164,6 +166,16 @@ export function RoutingSection() {
               expert-facing payload never carries the golden flag or its expected scores; turn on
               operator view to see what the queue is really holding.
             </p>
+            <p className="card-note">
+              Depth by tag, as <code className="code">GET /tasks/queue</code> reports it:{" "}
+              {Object.keys(depthByTag).length === 0
+                ? "the queue is empty"
+                : Object.keys(depthByTag)
+                    .sort()
+                    .map((tag) => `${tag}=${depthByTag[tag]}`)
+                    .join(", ")}
+              . A task with two tags counts under both.
+            </p>
             <div className="controls">
               <button type="button" className="primary" onClick={claimNext} disabled={!expert}>
                 Claim next task
@@ -275,8 +287,9 @@ export function RoutingSection() {
               ))}
               <p className="card-note">
                 {raceRows.filter((r) => r.code === 201).length} owner,{" "}
-                {raceRows.filter((r) => r.code === 409).length} rejected with 409. The full 500-task
-                run repeats this with all 40 experts and blocks every one of the 40 attempts.
+                {raceRows.filter((r) => r.code === 409).length} rejected with 409. The full{" "}
+                {RUN.tasks}-task run repeats this with all {RUN.experts} experts and blocks every one
+                of the {RUN.experts} attempts.
               </p>
             </div>
           )}

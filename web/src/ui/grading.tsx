@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CRITERIA, gradeFor, ServiceError, trueScoresFor } from "../sim";
 import { Card, Section, Stamp } from "./bits";
+import { RUN } from "./params";
 import { money, pct } from "./format";
 import { useWorkbench } from "./workbench";
 
@@ -143,7 +144,7 @@ export function GradingSection() {
       id="grading"
       num="02"
       title="Rubric grading and hidden attention checks"
-      lede="Scores are validated against the rubric that the task is pinned to, stored as one normalized row per criterion, and combined with the criterion weights. One task in five is a golden check whose answer the platform already knows. The expert is never told which."
+      lede={`Scores are validated against the rubric that the task is pinned to, stored as one normalized row per criterion, and combined with the criterion weights. One serve in ${RUN.serveOneIn} prefers a golden check here, and one task in ${RUN.goldenOneIn} is golden in the full run; the answer is one the platform already knows and the expert is never told which task carries it.`}
     >
       <div className="cols">
         <Card
@@ -229,7 +230,9 @@ export function GradingSection() {
               </div>
               <p className="card-note">
                 Serving a golden check is an operator action here so the guard can be tripped in two
-                clicks. In the service it happens on its own, every fifth serve.
+                clicks. The service decides it with a keyed hash instead: one serve in{" "}
+                {RUN.serveOneIn} under these settings, one in {RUN.productionServeOneIn} at the
+                production default, and never on a schedule the expert can count.
               </p>
               <div className="scroll-x section-gap-sm">
                 <table>

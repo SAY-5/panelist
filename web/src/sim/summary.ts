@@ -88,7 +88,7 @@ export function formatSummary(s: DemoSummary, timing: Timing | null = null): str
     `inter-rater agreement: ${s.agreement.multiGradedTasks} multi-graded tasks, ${s.agreement.comparedPairs} score pairs, mean abs diff ${(s.agreement.meanAbsDiff ?? 0).toFixed(3)}, exact ${pct(s.agreement.exactAgreement)}, within one ${pct(s.agreement.withinOne)}`,
     `criterion means: ${s.criteria.map((c) => `${c.key}=${c.mean.toFixed(2)}`).join(", ")}`,
     `delivery v${s.delivery.version}: ${s.delivery.rowCount} rows, ${s.delivery.sizeBytes.toLocaleString("en-US")} bytes, sha256 ${s.delivery.checksum}`,
-    `delivery location: ${s.delivery.location}  (${s.storage})`,
+    `delivery would be stored at: ${s.delivery.location}  (${s.storage})`,
   ];
   if (timing) {
     const lat = [...timing.latenciesMs].sort((a, b) => a - b);

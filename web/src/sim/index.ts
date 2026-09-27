@@ -1,5 +1,5 @@
 export * from "./types";
-export { Clock, EPOCH_MS, isoTime } from "./clock";
+export { Clock, EPOCH_MS } from "./clock";
 export { Rng, hashString } from "./prng";
 export { sha256Hex, utf8Length } from "./sha256";
 export { Platform, ServiceError, prefersAttentionCheck, stableStringify } from "./platform";

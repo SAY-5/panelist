@@ -1,5 +1,5 @@
 import { DeliverySection } from "./ui/delivery";
-import { MeasuredRunProvider } from "./ui/demo";
+import { SimulatedRunProvider } from "./ui/demo";
 import { FullRunSection } from "./ui/fullrun";
 import { GradingSection } from "./ui/grading";
 import { Hero } from "./ui/hero";
@@ -20,7 +20,7 @@ const NAV = [
 
 export default function App() {
   return (
-    <MeasuredRunProvider>
+    <SimulatedRunProvider>
       <WorkbenchProvider>
         <a className="skip" href="#main">
           Skip to the demo
@@ -72,6 +72,6 @@ export default function App() {
           </div>
         </footer>
       </WorkbenchProvider>
-    </MeasuredRunProvider>
+    </SimulatedRunProvider>
   );
 }

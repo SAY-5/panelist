@@ -338,7 +338,7 @@ function* runSteps(opts: DemoOptions, world: World, platform: Platform, stats: D
     agreement,
     criteria,
     delivery,
-    storage: "s3 (in-memory)",
+    storage: "in-memory (no S3)",
   };
   yield { kind: "done" };
   return summary;

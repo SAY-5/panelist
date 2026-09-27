@@ -7,7 +7,8 @@ version and the services), with a seeded PRNG and a virtual clock standing in fo
 and the wall clock. Rubric versions (2.0.0), calibration and tiers (3.0.0), consensus and
 adjudication (4.0.0) and the ops overview and tick (5.0.0) are not ported: a multi-graded task
 delivers every approved grade here, and the summary block stops at the delivery line. No
-backend, no network calls, no Docker.
+backend, no API calls, no Docker. `index.html` does load two families from Google Fonts;
+`styles.css` declares a system fallback for each, so the page reads the same offline.
 
 ## Commands
 

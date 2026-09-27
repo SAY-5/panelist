@@ -1,6 +1,6 @@
 import { CRITERIA, Platform, sha256Hex, utf8Length } from "../sim";
 import { Card, Section, Stamp } from "./bits";
-import { useMeasuredRun } from "./demo";
+import { useSimulatedRun } from "./demo";
 import { pct } from "./format";
 import { useWorkbench } from "./workbench";
 
@@ -16,7 +16,7 @@ function Hex({ value }: { value: string }) {
 export function DeliverySection() {
   const { bench, bump } = useWorkbench();
   const platform = bench.platform;
-  const run = useMeasuredRun();
+  const run = useSimulatedRun();
 
   const rows = platform.deliveryRows();
   const body = Platform.jsonl(rows);

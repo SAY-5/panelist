@@ -388,10 +388,6 @@ export class Platform {
     this.locked.delete(taskId);
   }
 
-  isLocked(taskId: string): boolean {
-    return this.locked.has(taskId);
-  }
-
   /** POST /tasks/{id}/release */
   release(expert: Expert, taskId: string): Task {
     const task = this.task(taskId);
@@ -759,7 +755,9 @@ export class Platform {
     const delivery: Delivery = {
       version,
       checksum,
-      location: `s3://${this.settings.deliveryBucket}/deliveries/${name}`,
+      // The object lives in this array, so the name is recorded without an s3:// scheme it
+      // does not have. The service writes the same name under s3://<bucket>/deliveries/.
+      location: `deliveries/${name}`,
       rowCount: count,
       sizeBytes: utf8Length(body),
     };
