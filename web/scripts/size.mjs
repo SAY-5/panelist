@@ -1,5 +1,5 @@
 // Payload budget for the built page: gzipped bytes of every JS chunk in dist/assets.
-// The budget is a ceiling, not a target; the measured size at the time it was set is in the README.
+// The budget is a ceiling, not a target; the measured total is printed below on every run.
 import { readdirSync, readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { join } from "node:path";

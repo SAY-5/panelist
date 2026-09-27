@@ -2,6 +2,7 @@ import { CRITERIA, Platform, sha256Hex, utf8Length } from "../sim";
 import { Card, Section, Stamp } from "./bits";
 import { useSimulatedRun } from "./demo";
 import { pct } from "./format";
+import { RUN } from "./params";
 import { useWorkbench } from "./workbench";
 
 function Hex({ value }: { value: string }) {
@@ -28,7 +29,7 @@ export function DeliverySection() {
 
   const agreement = platform.globalAgreement();
   const criteria = run?.summary.criteria ?? platform.criterionMeans();
-  const criteriaSource = run ? "500-task run" : "workbench";
+  const criteriaSource = run ? `${RUN.tasks}-task run` : "workbench";
   const firstLine = body.split("\n")[0] ?? "";
 
   return (

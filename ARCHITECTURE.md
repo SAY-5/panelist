@@ -70,7 +70,7 @@ A grade is stored twice on purpose. `grades.scores_snapshot` is a JSONB copy of 
 
 ECS tasks run in the public subnets with `assign_public_ip = true`, which is how they reach ECR and Secrets Manager without a NAT gateway; the security group admits only the ALB. RDS stays in the private subnets. A production account would move the tasks into the private subnets behind a NAT gateway or VPC endpoints and pay for one of the two.
 
-The Terraform root wires four modules: `network` (VPC, two public and two private subnets, IGW), `storage` (versioned, encrypted, private S3 bucket), `database` (RDS PostgreSQL 16 in private subnets, security group admitting only the service, Secrets Manager secret with the full `DATABASE_URL`) and `service` (ECS cluster with Container Insights, task definition with an `alembic upgrade head` init container and the API container reading `DATABASE_URL` from Secrets Manager, task role limited to the deliveries bucket, ALB with `/healthz` target group, CloudWatch log group).
+The Terraform root wires four modules: `network` (VPC, two public and two private subnets, IGW), `storage` (versioned, encrypted, private S3 bucket), `database` (RDS PostgreSQL 16 in private subnets, security group admitting only the service, Secrets Manager secret with the full `DATABASE_URL`) and `service` (ECS cluster with Container Insights, task definition with an `alembic upgrade head` init container and the API container reading `DATABASE_URL` and `ATTENTION_KEY` from Secrets Manager, task role limited to the deliveries bucket, ALB with `/healthz` target group, CloudWatch log group).
 
 ## Browser port
 
