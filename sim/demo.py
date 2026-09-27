@@ -65,7 +65,16 @@ def world_fingerprint(world: World) -> str:
     return hashlib.sha256(json.dumps(fixed, sort_keys=True).encode()).hexdigest()
 
 
-def environment(db_version: str | None) -> dict:
+def load_average() -> list[float]:
+    """The three load averages, rounded, so a recorded run carries the load it ran under."""
+    return [round(v, 2) for v in os.getloadavg()]
+
+
+def format_load(load: list[float]) -> str:
+    return ", ".join(f"{v:.2f}" for v in load)
+
+
+def environment(db_version: str | None, load_start: list[float], load_end: list[float]) -> dict:
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
@@ -79,6 +88,8 @@ def environment(db_version: str | None) -> dict:
         "machine": f"{platform.system()} {platform.release()} {platform.machine()}",
         "cpu_count": os.cpu_count(),
         "postgres": db_version,
+        "load_average_start": load_start,
+        "load_average_end": load_end,
     }
 
 
@@ -310,6 +321,7 @@ def main(argv=None) -> int:
     settings = get_settings()
     world = build_world(args.seed, args.experts, args.tasks, args.golden_share)
     started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    load_start = load_average()
     server = start_api()
     storage = ensure_bucket()
     admin_key = bootstrap(f"pk_admin_{secrets.token_urlsafe(16)}")
@@ -375,6 +387,7 @@ def main(argv=None) -> int:
     with session_factory()() as db:
         reclaims = int(db.scalar(select(func.coalesce(func.sum(Task.reclaim_count), 0))))
         pg_version = db.scalar(text("SHOW server_version"))
+    load_end = load_average()
     attention = [admin.get(f"/experts/{e.id}/attention").json() for e in world.experts]
     checks_served = sum(a["checks_total"] for a in attention)
     checks_failed = checks_served - sum(a["checks_passed"] for a in attention)
@@ -402,6 +415,12 @@ def main(argv=None) -> int:
         f" window {settings.attention_window},"
         f" min checks {settings.attention_min_checks}, threshold {settings.attention_threshold},"
         f" lease {settings.lease_seconds}s"
+    )
+    print(
+        f"machine: {platform.system()} {platform.release()} {platform.machine()},"
+        f" {os.cpu_count()} CPUs, PostgreSQL {pg_version}, Python {platform.python_version()},"
+        f" load average {format_load(load_start)} at the start of the run,"
+        f" {format_load(load_end)} at this summary"
     )
     print(
         f"claims by matched tag ({stats.claims} claims; a claim matching two of the"
@@ -500,7 +519,7 @@ def main(argv=None) -> int:
                 "golden_share": args.golden_share,
                 "started_at": started_at,
             },
-            "environment": environment(pg_version),
+            "environment": environment(pg_version, load_start, load_end),
             "world_fingerprint": world_fingerprint(world),
             "config": {
                 "attention_fraction": settings.attention_fraction,
