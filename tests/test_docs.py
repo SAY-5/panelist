@@ -1,11 +1,14 @@
 """The README tables are the documentation of record, so a drift between them and the code fails.
 
 The table checks compare sets, so a new route or setting has to be documented in the same commit,
-and a row for something that no longer exists has to be deleted. The last check pins the test
-total quoted in the Testing section to the test functions in this directory.
+and a row for something that no longer exists has to be deleted. The benchmark check reads the
+table's figures out of the artifact the section names, so a quoted latency belongs to a recorded
+run. The last check pins the test total quoted in the Testing section to the test functions in
+this directory.
 """
 
 import ast
+import json
 import re
 from pathlib import Path
 
@@ -33,6 +36,11 @@ def _actual_routes() -> set[tuple[str, str]]:
     }
 
 
+def _readings(cell: str) -> list[float]:
+    """One table cell's comma-separated readings, one per round."""
+    return [float(value) for value in cell.split(",")]
+
+
 def _test_functions() -> int:
     """Top-level `test_` functions in this directory, which is what pytest collects here."""
     return sum(
@@ -54,6 +62,36 @@ def test_readme_configuration_table_matches_the_settings():
     actual = {name.upper() for name in Settings.model_fields}
     assert actual - documented == set(), "settings missing from the README configuration table"
     assert documented - actual == set(), "README configuration table lists settings that are gone"
+
+
+def test_readme_benchmark_table_quotes_its_artifact():
+    named = re.search(r"`(docs/bench-\d{4}-\d{2}-\d{2}\.json)`", README)
+    assert named is not None, "the benchmark section no longer names an artifact"
+    artifact = Path(__file__).resolve().parents[1] / named.group(1)
+    runs = json.loads(artifact.read_text())["runs"]
+    rows = re.findall(
+        r"^\| (\d+) \| (one worker, in process|`uvicorn --workers 4`) \| (\d+)"
+        r" \| ([\d.,\s]+) \| ([\d.,\s]+) \| ([\d.,\s]+) \| (\d+) \|$",
+        README,
+        re.M,
+    )
+    assert len(rows) == 4, "the benchmark table no longer has a row per server and claimant count"
+    for claimants, api, claims, p50, p95, throughput, doubled in rows:
+        over_socket = api.startswith("`")
+        measured = [
+            phase
+            for run in runs
+            if bool(run["run"]["base_url"]) is over_socket
+            for phase in run["rows"]
+            if phase["claimants"] == int(claimants)
+        ]
+        assert measured, f"no run in {named.group(1)} matches {api} at {claimants} claimants"
+        assert [phase["claims"] for phase in measured] == [int(claims)] * len(measured)
+        assert [phase["p50_ms"] for phase in measured] == _readings(p50)
+        assert [phase["p95_ms"] for phase in measured] == _readings(p95)
+        assert [phase["throughput"] for phase in measured] == _readings(throughput)
+        handed_twice = [phase["claims"] - phase["distinct"] for phase in measured]
+        assert handed_twice == [int(doubled)] * len(measured)
 
 
 def test_readme_test_count_matches_the_suite():

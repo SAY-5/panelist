@@ -103,27 +103,39 @@ What the seed fixes and what it does not: `seed: 7` fixes the expert roster with
 
 `uv run python -m sim.bench` seeds one tag's worth of experts and tasks, then claims twice: once
 with a single claimant, once with all of them, so the cost of a claim can be told apart from the
-cost of queueing behind other claimants. Measured at commit 2c2f963 on macOS 25.0.0 arm64, 10
-CPUs, PostgreSQL 16.14 in the compose container, three rounds of both servers with the database
-reset before each run. Each run prints its own load average; across the six the one minute
-average at the start ran from 7.16 to 9.61 on this 10 CPU machine, so every number below carries
-a busy machine's queueing. The three readings of each figure are the three rounds, in order:
+cost of queueing behind other claimants. `--json PATH` writes the run as well as printing it and
+appends to a path that already holds runs, so a set of rounds lands in one file:
+`docs/bench-2026-09-27.json` is the artifact this table quotes. It holds all six runs below, each
+with both of its rows, the claimant and task counts, the commit, the machine, the CPU count, the
+PostgreSQL and Python versions, and the one, five and fifteen minute load averages at the run's
+start and end. The six ran at commit a385a96 on macOS 25.0.0 arm64 with 10 CPUs and PostgreSQL
+16.14 in the compose container under Python 3.12.13, with the database reset before each run and
+the two servers alternating so that a pair of rounds shares a load window. The one minute average
+at the starts ran from 7.35 to 16.60 on this 10 CPU machine, so every number below carries a busy
+machine's queueing. The three readings of each figure are that server's three rounds, in the
+order the artifact holds them:
 
 | claimants | API | claims | p50 ms | p95 ms | claims/s | tasks handed to two claimants |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | one worker, in process | 50 | 13.0, 12.5, 10.6 | 17.1, 17.7, 14.0 | 69.5, 73.7, 84.4 | 0 |
-| 40 | one worker, in process | 520 | 263.6, 271.1, 258.6 | 347.3, 366.4, 355.8 | 145.7, 139.7, 146.3 | 0 |
-| 1 | `uvicorn --workers 4` | 50 | 12.2, 13.1, 11.7 | 25.1, 17.9, 17.4 | 69.4, 61.9, 78.7 | 0 |
-| 40 | `uvicorn --workers 4` | 520 | 114.4, 133.6, 137.8 | 284.8, 357.9, 269.8 | 248.4, 238.9, 226.4 | 0 |
+| 1 | one worker, in process | 50 | 9.9, 8.6, 8.4 | 25.6, 10.5, 12.2 | 81.9, 105.0, 102.6 | 0 |
+| 40 | one worker, in process | 520 | 210.3, 211.9, 220.9 | 268.7, 281.9, 315.9 | 181.7, 181.3, 170.7 | 0 |
+| 1 | `uvicorn --workers 4` | 50 | 8.3, 11.3, 9.8 | 10.8, 34.6, 25.2 | 98.7, 66.4, 83.6 | 0 |
+| 40 | `uvicorn --workers 4` | 520 | 96.5, 85.3, 104.1 | 204.8, 172.0, 324.6 | 308.3, 385.8, 273.1 | 0 |
 
-A claim costs 10.6 to 13.1 ms when nothing competes for the worker, on either server. The 259 to
-271 ms at 40 claimants against one worker is almost entirely queueing: four workers bring the p50
-down to 114 to 138 ms and throughput up from 140 to 146 claims a second to 226 to 248, because
+A claim costs 8.3 to 11.3 ms when nothing competes for the worker, on either server. The 210 to
+221 ms at 40 claimants against one worker is almost entirely queueing: four workers bring the p50
+down to 85 to 104 ms and throughput up from 171 to 182 claims a second to 273 to 386, because
 `FOR UPDATE SKIP LOCKED` lets the four processes claim different rows rather than wait on each
-other. No task was ever handed to two claimants in any phase of any round. The single-claimant
-rows do not separate the two servers: their p50 ranges overlap (10.6 to 13.0 ms in process, 11.7
-to 13.1 ms across a socket to four workers) and which one is ahead changes from round to round,
-so this table says nothing about what the socket hop costs.
+other. No task was ever handed to two claimants in any phase of any round. Two things the table
+does not settle. The single-claimant rows do not separate the two servers: their p50 ranges
+overlap (8.4 to 9.9 ms in process, 8.3 to 11.3 ms across a socket to four workers) and which one
+is ahead changes from round to round, so this table says nothing about what the socket hop costs.
+The contended p95 ranges overlap as well (268.7 to 315.9 ms against one worker, 172.0 to 324.6
+across four), so what four workers move is the p50 and the throughput, not the tail. What moves
+with the machine is in the artifact: on both servers the round that started at the highest load
+holds that server's highest contended p50 and p95, and below that round the ordering does not
+follow the load. The artifact records a base URL for the four-worker rows rather than a worker
+count; the server behind them was started with the command in `sim/bench.py`.
 
 ### Browser demo
 
@@ -235,7 +247,7 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 
 ## Testing
 
-`make test` runs 69 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, exact `/ops/overview` counts on a seeded fixture, the scheduler tick and the audit export, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
+`make test` runs 70 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, exact `/ops/overview` counts on a seeded fixture, the scheduler tick and the audit export, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
 
 ## Releases
 
