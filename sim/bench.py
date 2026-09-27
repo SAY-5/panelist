@@ -4,7 +4,9 @@ The demo reports a claim latency measured with every expert hammering one in-pro
 which mixes the cost of the request with the cost of queueing behind other claimants. This
 runs the same endpoint twice against the same database: once with a single claimant, once
 with `--claimants` of them, and prints both. Latency is load sensitive, so the header records
-the machine, the commit, the PostgreSQL version and the load average at the start of the run.
+the machine, the commit, the PostgreSQL version and the load average at the start of the run. It
+seeds its own rubric, experts and tasks and leaves them behind, so it runs against an empty
+database or one that already holds the demo's rows.
 
     DATABASE_URL=postgresql+psycopg://panelist:panelist@localhost:5439/panelist \
         uv run python -m sim.bench --claimants 40 --tasks 600
@@ -80,7 +82,11 @@ def client(key: str, base: str = BASE) -> httpx.Client:
 
 
 def seed(admin: httpx.Client, claimants: int, tasks: int) -> list[str]:
-    rubric = admin.post("/rubrics", json=RUBRIC).json()
+    # The rubric name carries a run suffix so the seeding step does not collide with the demo's
+    # rubric, or with an earlier benchmark run, in a database that already holds one.
+    created = admin.post("/rubrics", json={**RUBRIC, "name": f"bench-{secrets.token_hex(4)}"})
+    created.raise_for_status()
+    rubric = created.json()
     admin.put("/rate-cards", json=RATES).raise_for_status()
     keys = []
     for i in range(claimants):
