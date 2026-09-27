@@ -4,9 +4,9 @@ The demo reports a claim latency measured with every expert hammering one in-pro
 which mixes the cost of the request with the cost of queueing behind other claimants. This
 runs the same endpoint twice against the same database: once with a single claimant, once
 with `--claimants` of them, and prints both. Latency is load sensitive, so the header records
-the machine, the commit, the PostgreSQL version and the load average at the start of the run. It
-seeds its own rubric, experts and tasks and leaves them behind, so it runs against an empty
-database or one that already holds the demo's rows.
+the machine, the commit, the PostgreSQL version and the load average both when the run started
+and when it finished. It seeds its own rubric, experts and tasks and leaves them behind, so it
+runs against an empty database or one that already holds the demo's rows.
 
     DATABASE_URL=postgresql+psycopg://panelist:panelist@localhost:5439/panelist \
         uv run python -m sim.bench --claimants 40 --tasks 600
@@ -145,7 +145,11 @@ def phase(label: str, keys: list[str], per_claimant: int, base: str) -> dict:
     }
 
 
-def header(note: str) -> list[str]:
+def format_load(load: tuple[float, ...]) -> str:
+    return ", ".join(f"{v:.2f}" for v in load)
+
+
+def header(note: str, load_start: tuple[float, ...]) -> list[str]:
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
@@ -154,10 +158,10 @@ def header(note: str) -> list[str]:
         sha = "unknown"
     with session_factory()() as db:
         pg = str(db.execute(text("SHOW server_version")).scalar())
-    load = ", ".join(f"{v:.2f}" for v in os.getloadavg())
     return [
         f"panelist {__version__} at {sha}, PostgreSQL {pg}, {os.cpu_count()} CPUs,"
-        f" load average {load}",
+        f" load average {format_load(load_start)} at the start,"
+        f" {format_load(os.getloadavg())} at the end",
         note,
     ]
 
@@ -172,6 +176,7 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
+    load_start = os.getloadavg()
     key = bootstrap(f"pk_bench_{secrets.token_urlsafe(16)}")
     base = args.base_url or BASE
     server = None
@@ -192,7 +197,7 @@ def main(argv=None) -> int:
         if server is not None:
             server.should_exit = True
 
-    for line in header(note):
+    for line in header(note, load_start):
         print(line)
     columns = ("phase", "clients", "claims", "unique", "p50 ms", "p95 ms", "claims/s")
     print(
