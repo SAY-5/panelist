@@ -40,9 +40,12 @@ npm run size       # gzipped JS in dist/ against the budget in scripts/size.mjs
   time fully determines a run, so the same seed always prints the same summary.
 - Numbers shown on the page are produced by running the port in the page, not
   typed into markup. The port has its own PRNG, so its totals differ from the
-  Python run quoted in the top-level README while every invariant holds:
-  zero tag mismatches, every double-assignment attempt blocked, careless experts
-  paused, withheld payouts kept out of the statement.
+  Python run quoted in the top-level README, while what the code enforces holds
+  in both: zero tag mismatches, every double-assignment attempt blocked, nobody
+  paused but a careless expert, withheld payouts kept out of the statement. How
+  many of the two careless experts the service pauses depends on how many checks
+  its claim race serves them, so the comparison card marks that row as varying
+  between service runs rather than holding.
 - The checksum on the delivery card is a real SHA-256 of the JSONL body,
   recomputed on every change. `stableStringify()` prints floats the way Python's
   `json.dumps` does, so a row serialised here is byte for byte the row the service exports.
