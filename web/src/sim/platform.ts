@@ -27,6 +27,20 @@ import {
   TIER_RANK,
 } from "./types";
 
+/**
+ * panelist/services/routing.py prefers_attention_check: whether serve number `serveIndex`
+ * for this expert prefers a golden task. A hash of the key, the expert id and the serve
+ * number replaces a countable every-Nth cadence, holds the configured share over many
+ * serves, and cannot be predicted without the key.
+ */
+export function prefersAttentionCheck(settings: Settings, expertId: string, serveIndex: number): boolean {
+  const fraction = settings.attentionFraction;
+  if (fraction <= 0) return false;
+  if (fraction >= 1) return true;
+  const digest = sha256Hex(`${settings.attentionKey}:${expertId}:${serveIndex}`);
+  return parseInt(digest.slice(0, 8), 16) / 2 ** 32 < fraction;
+}
+
 export class ServiceError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -325,14 +339,8 @@ export class Platform {
     return task;
   }
 
-  attentionPeriod(): number {
-    const f = this.settings.attentionFraction;
-    return f ? Math.max(1, Math.round(1 / f)) : 0;
-  }
-
   prefersAttention(expert: Expert): boolean {
-    const period = this.attentionPeriod();
-    return period > 0 && (expert.servedCount + 1) % period === 0;
+    return prefersAttentionCheck(this.settings, expert.id, expert.servedCount + 1);
   }
 
   /** POST /tasks/next */

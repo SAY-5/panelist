@@ -35,7 +35,7 @@ resource "aws_iam_role_policy_attachment" "execution" {
 data "aws_iam_policy_document" "execution_secrets" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [var.database_url_arn]
+    resources = [var.database_url_arn, var.attention_key_arn]
   }
 }
 
@@ -169,7 +169,10 @@ resource "aws_ecs_task_definition" "api" {
         { name = "ATTENTION_FRACTION", value = tostring(var.attention_fraction) },
         { name = "LOG_LEVEL", value = "INFO" },
       ]
-      secrets = [{ name = "DATABASE_URL", valueFrom = var.database_url_arn }]
+      secrets = [
+        { name = "DATABASE_URL", valueFrom = var.database_url_arn },
+        { name = "ATTENTION_KEY", valueFrom = var.attention_key_arn },
+      ]
       healthCheck = {
         command  = ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/healthz')\""]
         interval = 15

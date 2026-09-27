@@ -10,18 +10,57 @@ def _golden(n):
     return [{"is_attention_check": True, "expected_scores": GOLD, "priority": 1} for _ in range(n)]
 
 
-def test_attention_checks_served_at_configured_fraction(client, admin_key, settings):
-    settings.attention_fraction = 0.5
-    rubric = setup_rubric(client, admin_key)
-    make_tasks(client, admin_key, rubric, [{} for _ in range(6)] + _golden(3))
-    _, key = make_expert(client, admin_key, "A", ["python"])
-    served = []
-    for _ in range(6):
+def _served_checks(client, admin_key, key, serves):
+    """Claim `serves` times and report which of them were attention checks."""
+    out = []
+    for _ in range(serves):
         t = claim(client, key)
-        served.append(
+        assert t is not None
+        out.append(
             client.get(f"/tasks/{t['id']}", headers=h(admin_key)).json()["is_attention_check"]
         )
-    assert served == [False, True, False, True, False, True]
+    return out
+
+
+def test_attention_checks_are_served_at_the_configured_share(client, admin_key, settings):
+    settings.attention_fraction = 0.5
+    rubric = setup_rubric(client, admin_key)
+    make_tasks(client, admin_key, rubric, [{} for _ in range(40)] + _golden(40))
+    _, key = make_expert(client, admin_key, "A", ["python"])
+    served = _served_checks(client, admin_key, key, 40)
+    # A keyed hash decides each serve, so the share holds without a countable cadence.
+    assert 12 <= sum(served) <= 28
+    every_other = [i % 2 == 1 for i in range(40)]
+    assert served != every_other
+
+
+def test_gaming_the_old_cadence_does_not_dodge_the_checks(client, admin_key, settings, db):
+    """An expert careful only on the serves a 1/f cadence would predict still gets paused."""
+    settings.attention_fraction = 0.5
+    settings.attention_min_checks = 2
+    rubric = setup_rubric(client, admin_key)
+    make_tasks(client, admin_key, rubric, [{} for _ in range(30)] + _golden(30))
+    expert, key = make_expert(client, admin_key, "A", ["python"])
+    careless = {"accuracy": 1, "clarity": 1, "safety": 1}
+    off_cadence_checks = 0
+    for serve in range(1, 31):
+        r = client.post("/tasks/next", headers=h(key))
+        if r.status_code in (204, 423):  # queue empty, or the guard has already tripped
+            break
+        assert r.status_code == 200, r.text
+        t = r.json()
+        predicted = serve % 2 == 0
+        is_check = client.get(f"/tasks/{t['id']}", headers=h(admin_key)).json()[
+            "is_attention_check"
+        ]
+        if is_check and not predicted:
+            off_cadence_checks += 1
+        grade(client, key, t["id"], scores=GOLD if predicted else careless)
+    db.expire_all()
+    # At least one check landed on a serve the cadence would not have predicted, and the
+    # careless grade on it is what pauses the expert.
+    assert off_cadence_checks >= 1
+    assert db.get(Expert, uuid.UUID(expert["id"])).status == ExpertStatus.paused
 
 
 def test_failed_checks_pause_expert_and_withhold_payouts(

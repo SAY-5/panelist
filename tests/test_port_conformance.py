@@ -14,7 +14,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from panelist.auth import hash_key
 from panelist.models import (
@@ -23,6 +23,7 @@ from panelist.models import (
     Expert,
     Grade,
     RateCard,
+    Review,
     ReviewDecision,
     Role,
     Rubric,
@@ -38,6 +39,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "port_conformance.json"
 SETTINGS = {
     "lease_seconds": 900,
     "attention_fraction": 0.5,
+    "attention_key": "conformance",
     "attention_window": 10,
     "attention_min_checks": 2,
     "attention_threshold": 0.7,
@@ -140,68 +142,102 @@ TASKS = [
         **GOLD,
         expected_scores={"accuracy": 3, "clarity": 3, "safety": 3},
     ),
+    _task(10, "t-7", LAW, ["law"]),
 ]
 
 CAREFUL = "Accurate on the core claim; missed one edge case that a careful reader would expect."
 CARELESS = "Looks fine."
 
 
-def _grade(expert, task, scores, rationale=CAREFUL, seconds=200):
-    return {
-        "action": "grade",
-        "expert": expert,
-        "task": task,
-        "scores": scores,
-        "rationale": rationale,
-        "time_spent_seconds": seconds,
-    }
+CARELESS_SCORES = {"accuracy": 2.0, "clarity": 1.0, "safety": 2.0}
 
 
-def _review(task, expert, decision, reason=None):
-    return {
-        "action": "review",
-        "task": task,
-        "expert": expert,
-        "decision": decision,
-        "reason": reason,
-    }
+def _grade(expert):
+    """Grade whatever the expert is holding; which task that is belongs to the routing rules."""
+    return {"action": "grade", "expert": expert}
+
+
+def _review(grade, decision, reason=None):
+    """`grade` is the 1-based position of the grade step whose grade this reviews."""
+    return {"action": "review", "grade": grade, "decision": decision, "reason": reason}
+
+
+def _typed_scores(expert: str, task: Task) -> tuple[dict[str, float], str, int]:
+    """What the expert types into the form for the task they hold.
+
+    C is the careless one: the same low scores everywhere, which fails a golden check. A and
+    B read the task, land inside `ATTENTION_TOLERANCE` on a golden one, and differ from each
+    other by a point on a regular one so the agreement statistics have something to compare.
+    """
+    if expert == "C":
+        return dict(CARELESS_SCORES), CARELESS, 12
+    if task.expected_scores:
+        scores = {k: float(v) for k, v in task.expected_scores.items()}
+        scores["clarity"] = max(1.0, scores["clarity"] - 1.0)
+        return scores, CAREFUL, 150
+    shift = 0.0 if expert == "A" else 1.0
+    return {"accuracy": 5.0 - shift, "clarity": 4.0, "safety": 5.0 - shift}, CAREFUL, 200
+
+
+def _approved_grades(db) -> int:
+    """Approved grades on non-golden tasks: the 1.0.0 export rule, before consensus filtering."""
+    return int(
+        db.scalar(
+            select(func.count(Grade.id))
+            .join(Review, Review.grade_id == Grade.id)
+            .join(Task, Task.id == Grade.task_id)
+            .where(Review.decision == ReviewDecision.approve, Task.is_attention_check.is_(False))
+        )
+        or 0
+    )
+
+
+def _held(db, expert: Expert) -> Task:
+    task = db.scalar(select(Task).where(Task.assigned_expert_id == expert.id))
+    assert task is not None, f"{expert.name} holds no task"
+    return task
 
 
 STEPS = [
+    # A and C are served an attention check on their first serve, B is not: the schedule is a
+    # keyed hash of the expert id and the serve number, not a countable every-Nth cadence.
     {"action": "claim", "expert": "A"},
     {"action": "claim", "expert": "B"},
     {"action": "claim", "expert": "C"},
-    _grade("A", "t-6", {"accuracy": 5, "clarity": 4, "safety": 5}),
-    _grade("B", "t-2", {"accuracy": 4, "clarity": 4, "safety": 4}),
-    _grade("C", "t-4", {"accuracy": 2, "clarity": 3, "safety": 2}, CARELESS, 12),
+    _grade("A"),
+    _grade("B"),
+    _grade("C"),
     {"action": "claim", "expert": "A"},
-    _grade("A", "gold-1", {"accuracy": 5, "clarity": 5, "safety": 4}),
+    _grade("A"),
     {"action": "claim", "expert": "B"},
-    _grade("B", "gold-1", {"accuracy": 4, "clarity": 5, "safety": 5}),
+    _grade("B"),
     {"action": "claim", "expert": "C"},
-    _grade("C", "gold-2", {"accuracy": 1, "clarity": 1, "safety": 1}, CARELESS, 9),
-    _review("t-4", "C", "approve"),
-    _review("t-6", "A", "approve"),
-    _review("t-2", "B", "approve"),
+    _grade("C"),  # C's first failed check
+    _review(3, "approve"),
+    _review(1, "approve"),
+    _review(2, "approve"),
     {"action": "claim", "expert": "C"},
-    _grade("C", "t-3", {"accuracy": 5, "clarity": 1, "safety": 5}, CARELESS, 15),
+    _grade("C"),
+    _review(7, "reject", "spot check failed"),  # single-grader task, back to the queue
     {"action": "claim", "expert": "C"},
-    _grade("C", "gold-3", {"accuracy": 5, "clarity": 5, "safety": 5}, CARELESS, 8),
+    _grade("C"),
     {"action": "claim", "expert": "C"},
-    _review("t-3", "C", "reject", "spot check failed"),
-    # t-3 is back in the queue; its deadline puts it ahead of t-1 for A.
+    _grade("C"),  # second failed check: C is paused and their payouts are withheld
+    {"action": "claim", "expert": "C"},  # 423, the pause holds
     {"action": "claim", "expert": "A"},
-    _grade("A", "t-3", {"accuracy": 4, "clarity": 4, "safety": 4}),
+    _grade("A"),  # the requeued task, graded by someone else
     {"action": "claim", "expert": "B"},
-    _grade("B", "t-1", {"accuracy": 4, "clarity": 4, "safety": 4}),
+    _grade("B"),
     {"action": "claim", "expert": "A"},
-    _grade("A", "gold-2", {"accuracy": 4, "clarity": 4, "safety": 3}),
+    _grade("A"),  # second grade on the two-grader task, so a consensus round is scored
     {"action": "claim", "expert": "A"},
-    _grade("A", "t-5", {"accuracy": 4, "clarity": 3, "safety": 4}),
-    {"action": "claim", "expert": "B"},
-    _grade("B", "t-5", {"accuracy": 3, "clarity": 4, "safety": 4}),
-    _review("t-1", "B", "approve"),
-    _review("t-3", "A", "approve"),
+    _grade("A"),
+    {"action": "claim", "expert": "B"},  # 204: golden work remains but this serve is not a check
+    _review(4, "approve"),
+    _review(5, "approve"),
+    _review(10, "approve"),
+    _review(11, "approve"),
+    _review(12, "approve"),
     {"action": "close_period", "label": "2026-09-C"},
     {"action": "export"},
 ]
@@ -259,6 +295,7 @@ def run_scenario(db, settings) -> dict:
     db.commit()
 
     steps = []
+    graded: list[tuple[str, str]] = []  # (expert name, task ref) per grade step, in order
     for step in STEPS:
         out = dict(step)
         action = step["action"]
@@ -269,10 +306,17 @@ def run_scenario(db, settings) -> dict:
             except ServiceError as e:
                 out["expect"] = e.status_code
         elif action == "grade":
-            expert, task = experts[step["expert"]], tasks[step["task"]]
-            g = grading.submit(
-                db, expert, task.id, step["scores"], step["rationale"], step["time_spent_seconds"]
-            )
+            expert = experts[step["expert"]]
+            task = _held(db, expert)
+            scores, rationale, seconds = _typed_scores(step["expert"], task)
+            out |= {
+                "task": task.external_ref,
+                "scores": scores,
+                "rationale": rationale,
+                "time_spent_seconds": seconds,
+            }
+            graded.append((step["expert"], task.external_ref))
+            g = grading.submit(db, expert, task.id, scores, rationale, seconds)
             att = db.scalar(select(AttentionResult).where(AttentionResult.grade_id == g.id))
             out["expect"] = {
                 "weighted_score": g.weighted_score,
@@ -283,7 +327,9 @@ def run_scenario(db, settings) -> dict:
                 "task_status": task.status.value,
             }
         elif action == "review":
-            expert, task = experts[step["expert"]], tasks[step["task"]]
+            expert_name, task_ref = graded[step["grade"] - 1]
+            out |= {"expert": expert_name, "task": task_ref}
+            expert, task = experts[expert_name], tasks[task_ref]
             g = db.scalar(
                 select(Grade).where(Grade.task_id == task.id, Grade.expert_id == expert.id)
             )
@@ -310,6 +356,10 @@ def run_scenario(db, settings) -> dict:
                 "row_count": count,
                 "size_bytes": len(body),
                 "sha256": hashlib.sha256(body).hexdigest(),
+                # What the 1.0.0 export rule the port implements would deliver: every approved
+                # grade, including the grades a consensus round did not pick. The port is held to
+                # this number, and to the service's bytes only when the two rules agree.
+                "approved_grade_count": _approved_grades(db),
             }
         db.commit()  # each step is its own transaction, as it is over HTTP
         steps.append(out)
@@ -320,6 +370,16 @@ def run_scenario(db, settings) -> dict:
         counts[row["status"].value] += row["payout_count"]
     return {
         "settings": SETTINGS,
+        "attention_schedule": [
+            {
+                "expert": e["name"],
+                "serves": [
+                    routing.prefers_attention_check(settings, uuid.UUID(e["id"]), i)
+                    for i in range(1, 13)
+                ],
+            }
+            for e in EXPERTS
+        ],
         "rubric": RUBRIC,
         "rate_cards": RATE_CARDS,
         "experts": EXPERTS,

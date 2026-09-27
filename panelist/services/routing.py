@@ -1,5 +1,6 @@
 """Queue routing: claim tasks by expertise tag with row-level locking."""
 
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, exists, func, select, text, update
@@ -89,20 +90,37 @@ def _pick(db: Session, expert: Expert, want_attention: bool | None):
     return db.scalar(stmt)
 
 
+def prefers_attention_check(settings, expert_id, serve_index: int) -> bool:
+    """Whether serve number `serve_index` for this expert prefers a golden task.
+
+    A fixed every-Nth cadence is countable: an expert who kept a tally of their serves
+    would know which one is the check. The decision is a hash of `ATTENTION_KEY`, the
+    expert id and the serve number instead, so it is fixed for a given serve, holds the
+    configured share over many serves, and cannot be predicted without the key. The
+    default key ships in the source, so a local run is predictable; production sets one.
+    """
+    fraction = settings.attention_fraction
+    if fraction <= 0:
+        return False
+    if fraction >= 1:
+        return True
+    digest = hashlib.sha256(f"{settings.attention_key}:{expert_id}:{serve_index}".encode()).digest()
+    return int.from_bytes(digest[:4], "big") / 2**32 < fraction
+
+
 def claim_next(db: Session, expert: Expert) -> Task | None:
     """Claim the highest-priority eligible task for this expert.
 
     Uses SELECT ... FOR UPDATE SKIP LOCKED so concurrent claimants never
-    receive the same row. Every Nth serve for an expert prefers an attention
-    check (N = 1 / attention_fraction); the expert cannot tell the difference.
+    receive the same row. A keyed hash decides which serves prefer an attention
+    check, at the configured share; the expert cannot tell the difference.
     """
     if expert.status != ExpertStatus.active:
         raise ClaimError(423, f"expert is {expert.status.value}")
     settings = get_settings()
     reclaim_expired(db)
 
-    period = max(1, round(1 / settings.attention_fraction)) if settings.attention_fraction else 0
-    prefer_attention = period > 0 and (expert.served_count + 1) % period == 0
+    prefer_attention = prefers_attention_check(settings, expert.id, expert.served_count + 1)
 
     task = _pick(db, expert, want_attention=True) if prefer_attention else None
     if task is None:

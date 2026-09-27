@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 import { Clock, EPOCH_MS } from "./sim/clock";
 import { runDemo, seedPlatform, DEFAULT_DEMO } from "./sim/demo";
-import { Platform, ServiceError } from "./sim/platform";
+import { Platform, prefersAttentionCheck, ServiceError } from "./sim/platform";
 import { sha256Hex, utf8Length } from "./sim/sha256";
 import { formatSummary } from "./sim/summary";
 import { DEMO_SETTINGS, PayoutStatus, TaskStatus, Tier } from "./sim/types";
@@ -277,7 +277,8 @@ check(
 // tests/test_port_conformance.py runs this scenario through the service and writes
 // tests/fixtures/port_conformance.json; the port must reproduce every recorded outcome.
 interface ConformanceFixture {
-  settings: { lease_seconds: number; attention_fraction: number; attention_window: number; attention_min_checks: number; attention_threshold: number; attention_tolerance: number };
+  settings: { lease_seconds: number; attention_fraction: number; attention_key: string; attention_window: number; attention_min_checks: number; attention_threshold: number; attention_tolerance: number };
+  attention_schedule: { expert: string; serves: boolean[] }[];
   rubric: { id: string; name: string; version: number; criteria: { key: string; label: string; weight: number }[] };
   rate_cards: { tier: Tier; task_type: string; rate_cents: number }[];
   experts: { id: string; name: string; tags: string[]; tier: Tier }[];
@@ -299,7 +300,7 @@ type ConformanceStep =
   | { action: "grade"; expert: string; task: string; scores: Record<string, number>; rationale: string; time_spent_seconds: number; expect: { weighted_score: number; attention: { passed: boolean; max_deviation: number } | null; expert_status: string; task_status: string } }
   | { action: "review"; task: string; expert: string; decision: "approve" | "reject"; reason: string | null; expect: { task_status: string; payout_cents: number | null; payout_status: string | null } }
   | { action: "close_period"; label: string; expect: { payout_count: number; total_cents: number; expert_count: number } }
-  | { action: "export"; expect: { row_count: number; size_bytes: number; sha256: string } };
+  | { action: "export"; expect: { row_count: number; size_bytes: number; sha256: string; approved_grade_count: number } };
 
 {
   const fx = JSON.parse(readFileSync(resolve(process.cwd(), "..", "tests", "fixtures", "port_conformance.json"), "utf8")) as ConformanceFixture;
@@ -309,6 +310,7 @@ type ConformanceStep =
     {
       leaseSeconds: st.lease_seconds,
       attentionFraction: st.attention_fraction,
+      attentionKey: st.attention_key,
       attentionWindow: st.attention_window,
       attentionMinChecks: st.attention_min_checks,
       attentionThreshold: st.attention_threshold,
@@ -348,6 +350,16 @@ type ConformanceStep =
     return t;
   };
   const near = (a: number | null, b: number | null): boolean => (a === null || b === null ? a === b : Math.abs(a - b) < 1e-9);
+  for (const row of fx.attention_schedule) {
+    const expert = platform.experts.find((e) => e.name === row.expert);
+    if (!expert) throw new Error(`no expert ${row.expert}`);
+    const mine = row.serves.map((_, i) => prefersAttentionCheck(platform.settings, expert.id, i + 1));
+    check(
+      `conformance: attention schedule for ${row.expert} matches the service`,
+      mine.every((v, i) => v === row.serves[i]),
+      mine.map((v) => (v ? "G" : ".")).join(""),
+    );
+  }
   fx.steps.forEach((step, i) => {
     clock.advance(1000);
     const label = `conformance ${i + 1} ${step.action}`;
@@ -387,8 +399,18 @@ type ConformanceStep =
       case "export": {
         const { body, count } = platform.buildJsonl();
         const sha = sha256Hex(body);
-        const ok = count === step.expect.row_count && utf8Length(body) === step.expect.size_bytes && sha === step.expect.sha256;
-        check(`${label}: ${step.expect.row_count} rows, sha256 ${step.expect.sha256.slice(0, 12)}`, ok, `${count} rows, ${utf8Length(body)} bytes, ${sha.slice(0, 12)}`);
+        // The port implements the 1.0.0 rule: every approved grade. The service filters a
+        // multi-graded task down to the grade its consensus round picked, so the two agree on
+        // bytes only when no consensus round dropped a grade.
+        const sameRule = step.expect.approved_grade_count === step.expect.row_count;
+        const ok = count === step.expect.approved_grade_count && (!sameRule || (utf8Length(body) === step.expect.size_bytes && sha === step.expect.sha256));
+        check(
+          sameRule
+            ? `${label}: ${step.expect.row_count} rows, sha256 ${step.expect.sha256.slice(0, 12)}`
+            : `${label}: ${step.expect.approved_grade_count} rows under the 1.0.0 rule where the service delivers ${step.expect.row_count}`,
+          ok,
+          `${count} rows, ${utf8Length(body)} bytes, ${sha.slice(0, 12)}`,
+        );
         break;
       }
     }

@@ -1,4 +1,57 @@
 {
+  "attention_schedule": [
+    {
+      "expert": "A",
+      "serves": [
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false,
+        true,
+        false,
+        false,
+        true,
+        true
+      ]
+    },
+    {
+      "expert": "B",
+      "serves": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true
+      ]
+    },
+    {
+      "expert": "C",
+      "serves": [
+        false,
+        true,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false
+      ]
+    }
+  ],
   "experts": [
     {
       "id": "00000000-0000-0000-0000-000000000001",
@@ -30,45 +83,45 @@
     "agreement": {
       "compared_pairs": 6,
       "exact_agreement": 0.16666666666666666,
-      "mean_abs_diff": 1.1666666666666667,
+      "mean_abs_diff": 1.8333333333333333,
       "multi_graded_tasks": 2,
-      "within_one": 0.8333333333333334
+      "within_one": 0.5
     },
     "criterion_means": [
       {
         "key": "accuracy",
-        "mean": 3.8461538461538463,
+        "mean": 3.5384615384615383,
         "n": 13,
-        "stddev": 1.214231845389905
+        "stddev": 1.3301243435223524
       },
       {
         "key": "clarity",
-        "mean": 3.6153846153846154,
+        "mean": 2.769230769230769,
         "n": 13,
-        "stddev": 1.325296290046213
+        "stddev": 1.4806443503784736
       },
       {
         "key": "safety",
-        "mean": 3.8461538461538463,
+        "mean": 3.5384615384615383,
         "n": 13,
-        "stddev": 1.2142318453899053
+        "stddev": 1.3301243435223524
       }
     ],
     "ledger": {
       "counts_by_status": {
-        "paid": 4,
+        "paid": 7,
         "pending": 0,
         "withheld": 1
       },
       "totals_by_status": {
-        "paid": 1750,
+        "paid": 3050,
         "pending": 0,
         "withheld": 300
       }
     },
     "task_status": {
       "adjudication": 0,
-      "approved": 5,
+      "approved": 6,
       "assigned": 0,
       "queued": 3,
       "rejected": 0,
@@ -126,6 +179,7 @@
   },
   "settings": {
     "attention_fraction": 0.5,
+    "attention_key": "conformance",
     "attention_min_checks": 2,
     "attention_threshold": 0.7,
     "attention_tolerance": 1.0,
@@ -135,12 +189,12 @@
   "steps": [
     {
       "action": "claim",
-      "expect": "t-6",
+      "expect": "gold-1",
       "expert": "A"
     },
     {
       "action": "claim",
-      "expect": "t-2",
+      "expect": "t-6",
       "expert": "B"
     },
     {
@@ -151,17 +205,38 @@
     {
       "action": "grade",
       "expect": {
-        "attention": null,
+        "attention": {
+          "max_deviation": 1.0,
+          "passed": true
+        },
         "expert_status": "active",
-        "task_status": "submitted",
+        "task_status": "queued",
         "weighted_score": 4.75
       },
       "expert": "A",
       "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
       "scores": {
-        "accuracy": 5,
-        "clarity": 4,
-        "safety": 5
+        "accuracy": 5.0,
+        "clarity": 4.0,
+        "safety": 5.0
+      },
+      "task": "gold-1",
+      "time_spent_seconds": 150
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 4.0
+      },
+      "expert": "B",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 4.0,
+        "clarity": 4.0,
+        "safety": 4.0
       },
       "task": "t-6",
       "time_spent_seconds": 200
@@ -172,237 +247,39 @@
         "attention": null,
         "expert_status": "active",
         "task_status": "submitted",
-        "weighted_score": 4.0
-      },
-      "expert": "B",
-      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
-      "scores": {
-        "accuracy": 4,
-        "clarity": 4,
-        "safety": 4
-      },
-      "task": "t-2",
-      "time_spent_seconds": 200
-    },
-    {
-      "action": "grade",
-      "expect": {
-        "attention": null,
-        "expert_status": "active",
-        "task_status": "submitted",
-        "weighted_score": 2.25
+        "weighted_score": 1.75
       },
       "expert": "C",
       "rationale": "Looks fine.",
       "scores": {
-        "accuracy": 2,
-        "clarity": 3,
-        "safety": 2
+        "accuracy": 2.0,
+        "clarity": 1.0,
+        "safety": 2.0
       },
       "task": "t-4",
       "time_spent_seconds": 12
     },
     {
       "action": "claim",
-      "expect": "gold-1",
+      "expect": "t-2",
       "expert": "A"
     },
     {
       "action": "grade",
       "expect": {
-        "attention": {
-          "max_deviation": 1.0,
-          "passed": true
-        },
+        "attention": null,
         "expert_status": "active",
-        "task_status": "queued",
+        "task_status": "submitted",
         "weighted_score": 4.75
       },
       "expert": "A",
       "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
       "scores": {
-        "accuracy": 5,
-        "clarity": 5,
-        "safety": 4
+        "accuracy": 5.0,
+        "clarity": 4.0,
+        "safety": 5.0
       },
-      "task": "gold-1",
-      "time_spent_seconds": 200
-    },
-    {
-      "action": "claim",
-      "expect": "gold-1",
-      "expert": "B"
-    },
-    {
-      "action": "grade",
-      "expect": {
-        "attention": {
-          "max_deviation": 1.0,
-          "passed": true
-        },
-        "expert_status": "active",
-        "task_status": "queued",
-        "weighted_score": 4.5
-      },
-      "expert": "B",
-      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
-      "scores": {
-        "accuracy": 4,
-        "clarity": 5,
-        "safety": 5
-      },
-      "task": "gold-1",
-      "time_spent_seconds": 200
-    },
-    {
-      "action": "claim",
-      "expect": "gold-2",
-      "expert": "C"
-    },
-    {
-      "action": "grade",
-      "expect": {
-        "attention": {
-          "max_deviation": 3.0,
-          "passed": false
-        },
-        "expert_status": "active",
-        "task_status": "queued",
-        "weighted_score": 1.0
-      },
-      "expert": "C",
-      "rationale": "Looks fine.",
-      "scores": {
-        "accuracy": 1,
-        "clarity": 1,
-        "safety": 1
-      },
-      "task": "gold-2",
-      "time_spent_seconds": 9
-    },
-    {
-      "action": "review",
-      "decision": "approve",
-      "expect": {
-        "payout_cents": 300,
-        "payout_status": "pending",
-        "task_status": "approved"
-      },
-      "expert": "C",
-      "reason": null,
-      "task": "t-4"
-    },
-    {
-      "action": "review",
-      "decision": "approve",
-      "expect": {
-        "payout_cents": 500,
-        "payout_status": "pending",
-        "task_status": "approved"
-      },
-      "expert": "A",
-      "reason": null,
-      "task": "t-6"
-    },
-    {
-      "action": "review",
-      "decision": "approve",
-      "expect": {
-        "payout_cents": 450,
-        "payout_status": "pending",
-        "task_status": "approved"
-      },
-      "expert": "B",
-      "reason": null,
-      "task": "t-2"
-    },
-    {
-      "action": "claim",
-      "expect": "t-3",
-      "expert": "C"
-    },
-    {
-      "action": "grade",
-      "expect": {
-        "attention": null,
-        "expert_status": "active",
-        "task_status": "submitted",
-        "weighted_score": 4.0
-      },
-      "expert": "C",
-      "rationale": "Looks fine.",
-      "scores": {
-        "accuracy": 5,
-        "clarity": 1,
-        "safety": 5
-      },
-      "task": "t-3",
-      "time_spent_seconds": 15
-    },
-    {
-      "action": "claim",
-      "expect": "gold-3",
-      "expert": "C"
-    },
-    {
-      "action": "grade",
-      "expect": {
-        "attention": {
-          "max_deviation": 2.0,
-          "passed": false
-        },
-        "expert_status": "paused",
-        "task_status": "queued",
-        "weighted_score": 5.0
-      },
-      "expert": "C",
-      "rationale": "Looks fine.",
-      "scores": {
-        "accuracy": 5,
-        "clarity": 5,
-        "safety": 5
-      },
-      "task": "gold-3",
-      "time_spent_seconds": 8
-    },
-    {
-      "action": "claim",
-      "expect": 423,
-      "expert": "C"
-    },
-    {
-      "action": "review",
-      "decision": "reject",
-      "expect": {
-        "payout_cents": null,
-        "payout_status": null,
-        "task_status": "queued"
-      },
-      "expert": "C",
-      "reason": "spot check failed",
-      "task": "t-3"
-    },
-    {
-      "action": "claim",
-      "expect": "t-3",
-      "expert": "A"
-    },
-    {
-      "action": "grade",
-      "expect": {
-        "attention": null,
-        "expert_status": "active",
-        "task_status": "submitted",
-        "weighted_score": 4.0
-      },
-      "expert": "A",
-      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
-      "scores": {
-        "accuracy": 4,
-        "clarity": 4,
-        "safety": 4
-      },
-      "task": "t-3",
+      "task": "t-2",
       "time_spent_seconds": 200
     },
     {
@@ -421,11 +298,235 @@
       "expert": "B",
       "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
       "scores": {
-        "accuracy": 4,
-        "clarity": 4,
-        "safety": 4
+        "accuracy": 4.0,
+        "clarity": 4.0,
+        "safety": 4.0
       },
       "task": "t-1",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "claim",
+      "expect": "gold-2",
+      "expert": "C"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": {
+          "max_deviation": 3.0,
+          "passed": false
+        },
+        "expert_status": "active",
+        "task_status": "queued",
+        "weighted_score": 1.75
+      },
+      "expert": "C",
+      "rationale": "Looks fine.",
+      "scores": {
+        "accuracy": 2.0,
+        "clarity": 1.0,
+        "safety": 2.0
+      },
+      "task": "gold-2",
+      "time_spent_seconds": 12
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 300,
+        "payout_status": "pending",
+        "task_status": "approved"
+      },
+      "expert": "C",
+      "grade": 3,
+      "reason": null,
+      "task": "t-4"
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 500,
+        "payout_status": "pending",
+        "task_status": "queued"
+      },
+      "expert": "A",
+      "grade": 1,
+      "reason": null,
+      "task": "gold-1"
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 300,
+        "payout_status": "pending",
+        "task_status": "approved"
+      },
+      "expert": "B",
+      "grade": 2,
+      "reason": null,
+      "task": "t-6"
+    },
+    {
+      "action": "claim",
+      "expect": "t-3",
+      "expert": "C"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 1.75
+      },
+      "expert": "C",
+      "rationale": "Looks fine.",
+      "scores": {
+        "accuracy": 2.0,
+        "clarity": 1.0,
+        "safety": 2.0
+      },
+      "task": "t-3",
+      "time_spent_seconds": 12
+    },
+    {
+      "action": "review",
+      "decision": "reject",
+      "expect": {
+        "payout_cents": null,
+        "payout_status": null,
+        "task_status": "queued"
+      },
+      "expert": "C",
+      "grade": 7,
+      "reason": "spot check failed",
+      "task": "t-3"
+    },
+    {
+      "action": "claim",
+      "expect": "t-7",
+      "expert": "C"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 1.75
+      },
+      "expert": "C",
+      "rationale": "Looks fine.",
+      "scores": {
+        "accuracy": 2.0,
+        "clarity": 1.0,
+        "safety": 2.0
+      },
+      "task": "t-7",
+      "time_spent_seconds": 12
+    },
+    {
+      "action": "claim",
+      "expect": "gold-3",
+      "expert": "C"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": {
+          "max_deviation": 2.0,
+          "passed": false
+        },
+        "expert_status": "paused",
+        "task_status": "queued",
+        "weighted_score": 1.75
+      },
+      "expert": "C",
+      "rationale": "Looks fine.",
+      "scores": {
+        "accuracy": 2.0,
+        "clarity": 1.0,
+        "safety": 2.0
+      },
+      "task": "gold-3",
+      "time_spent_seconds": 12
+    },
+    {
+      "action": "claim",
+      "expect": 423,
+      "expert": "C"
+    },
+    {
+      "action": "claim",
+      "expect": "t-3",
+      "expert": "A"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 4.75
+      },
+      "expert": "A",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 5.0,
+        "clarity": 4.0,
+        "safety": 5.0
+      },
+      "task": "t-3",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "claim",
+      "expect": "t-5",
+      "expert": "B"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "queued",
+        "weighted_score": 4.0
+      },
+      "expert": "B",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 4.0,
+        "clarity": 4.0,
+        "safety": 4.0
+      },
+      "task": "t-5",
+      "time_spent_seconds": 200
+    },
+    {
+      "action": "claim",
+      "expect": "t-5",
+      "expert": "A"
+    },
+    {
+      "action": "grade",
+      "expect": {
+        "attention": null,
+        "expert_status": "active",
+        "task_status": "submitted",
+        "weighted_score": 4.75
+      },
+      "expert": "A",
+      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
+      "scores": {
+        "accuracy": 5.0,
+        "clarity": 4.0,
+        "safety": 5.0
+      },
+      "task": "t-5",
       "time_spent_seconds": 200
     },
     {
@@ -447,58 +548,30 @@
       "expert": "A",
       "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
       "scores": {
-        "accuracy": 4,
-        "clarity": 4,
-        "safety": 3
+        "accuracy": 4.0,
+        "clarity": 3.0,
+        "safety": 4.0
       },
       "task": "gold-2",
-      "time_spent_seconds": 200
+      "time_spent_seconds": 150
     },
     {
       "action": "claim",
-      "expect": "t-5",
-      "expert": "A"
-    },
-    {
-      "action": "grade",
-      "expect": {
-        "attention": null,
-        "expert_status": "active",
-        "task_status": "queued",
-        "weighted_score": 3.75
-      },
-      "expert": "A",
-      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
-      "scores": {
-        "accuracy": 4,
-        "clarity": 3,
-        "safety": 4
-      },
-      "task": "t-5",
-      "time_spent_seconds": 200
-    },
-    {
-      "action": "claim",
-      "expect": "t-5",
+      "expect": 204,
       "expert": "B"
     },
     {
-      "action": "grade",
+      "action": "review",
+      "decision": "approve",
       "expect": {
-        "attention": null,
-        "expert_status": "active",
-        "task_status": "submitted",
-        "weighted_score": 3.5
+        "payout_cents": 650,
+        "payout_status": "pending",
+        "task_status": "approved"
       },
-      "expert": "B",
-      "rationale": "Accurate on the core claim; missed one edge case that a careful reader would expect.",
-      "scores": {
-        "accuracy": 3,
-        "clarity": 4,
-        "safety": 4
-      },
-      "task": "t-5",
-      "time_spent_seconds": 200
+      "expert": "A",
+      "grade": 4,
+      "reason": null,
+      "task": "t-2"
     },
     {
       "action": "review",
@@ -509,6 +582,7 @@
         "task_status": "approved"
       },
       "expert": "B",
+      "grade": 5,
       "reason": null,
       "task": "t-1"
     },
@@ -521,24 +595,52 @@
         "task_status": "approved"
       },
       "expert": "A",
+      "grade": 10,
       "reason": null,
       "task": "t-3"
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 300,
+        "payout_status": "pending",
+        "task_status": "approved"
+      },
+      "expert": "B",
+      "grade": 11,
+      "reason": null,
+      "task": "t-5"
+    },
+    {
+      "action": "review",
+      "decision": "approve",
+      "expect": {
+        "payout_cents": 500,
+        "payout_status": "pending",
+        "task_status": "approved"
+      },
+      "expert": "A",
+      "grade": 12,
+      "reason": null,
+      "task": "t-5"
     },
     {
       "action": "close_period",
       "expect": {
         "expert_count": 2,
-        "payout_count": 4,
-        "total_cents": 1750
+        "payout_count": 7,
+        "total_cents": 3050
       },
       "label": "2026-09-C"
     },
     {
       "action": "export",
       "expect": {
-        "row_count": 5,
-        "sha256": "c288984349da36c60d765592ab82d9891eeeaa81a295c4354513dd88a871ee64",
-        "size_bytes": 3230
+        "approved_grade_count": 7,
+        "row_count": 6,
+        "sha256": "0a38d4375e32e6c22a17ef02e20de2e23ad8a409c141d55d3963fe353cb66964",
+        "size_bytes": 3921
       }
     }
   ],
@@ -745,6 +847,27 @@
         {
           "model": "model-a",
           "text": "Response 1 to gold-3"
+        }
+      ],
+      "task_type": "single"
+    },
+    {
+      "deadline_hours": null,
+      "expected_scores": null,
+      "external_ref": "t-7",
+      "id": "00000000-0000-0000-0000-000000000110",
+      "is_attention_check": false,
+      "min_tier": "junior",
+      "priority": 0,
+      "prompt": "Summarize the enforceability of a restrictive covenant in this employment contract.",
+      "required_grades": 1,
+      "required_tags": [
+        "law"
+      ],
+      "responses": [
+        {
+          "model": "model-a",
+          "text": "Response 1 to t-7"
         }
       ],
       "task_type": "single"

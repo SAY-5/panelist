@@ -53,6 +53,13 @@ variable "attention_fraction" {
   default = 0.1
 }
 
+variable "attention_key" {
+  type        = string
+  sensitive   = true
+  default     = "change-me"
+  description = "Salts the attention-check schedule; rotate per environment"
+}
+
 variable "localstack_endpoint" {
   type        = string
   default     = ""

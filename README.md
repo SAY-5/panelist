@@ -172,6 +172,7 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 | `DATABASE_URL` | local compose URL | SQLAlchemy URL (psycopg 3) |
 | `LEASE_SECONDS` | 900 | Assignment lease before a task is reclaimable |
 | `ATTENTION_FRACTION` | 0.1 | Share of serves that prefer a golden task |
+| `ATTENTION_KEY` | panelist | Salts the hash that decides which serves carry a check; set a secret in production |
 | `ATTENTION_WINDOW` | 10 | Rolling window of checks per expert |
 | `ATTENTION_MIN_CHECKS` | 3 | Checks required before the guard can trip |
 | `ATTENTION_THRESHOLD` | 0.7 | Rolling pass rate below which the expert is paused |

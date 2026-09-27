@@ -8,7 +8,7 @@ GOLD = {"accuracy": 5, "clarity": 5, "safety": 5}
 
 
 def _seed(client, admin_key, reviewer_key, settings):
-    settings.attention_fraction = 0.25  # the fourth serve is the golden task
+    settings.attention_fraction = 0.0  # the golden task is claimed by id, not by schedule
     rubric = setup_rubric(client, admin_key)
     ids = make_tasks(
         client,
@@ -23,9 +23,11 @@ def _seed(client, admin_key, reviewer_key, settings):
     )
     _, key = make_expert(client, admin_key, "A", ["python"], tier="senior")
     grades = []
-    for _ in range(4):
+    for _ in range(3):
         t = claim(client, key)
         grades.append(grade(client, key, t["id"], rationale=f"Reasoned about {t['id']}"))
+    assert client.post(f"/tasks/{ids[3]}/claim", headers=h(key)).status_code == 200
+    grades.append(grade(client, key, ids[3], rationale=f"Reasoned about {ids[3]}"))
     review(client, reviewer_key, grades[0]["id"], "approve")
     review(client, reviewer_key, grades[1]["id"], "reject", "no")
     review(client, reviewer_key, grades[2]["id"], "approve")

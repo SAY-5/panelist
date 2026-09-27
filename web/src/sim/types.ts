@@ -138,6 +138,8 @@ export interface AuditEvent {
 export interface Settings {
   leaseSeconds: number;
   attentionFraction: number;
+  /** ATTENTION_KEY: salts the hash that decides which serves prefer a golden task. */
+  attentionKey: string;
   attentionWindow: number;
   attentionMinChecks: number;
   attentionThreshold: number;
@@ -148,6 +150,7 @@ export interface Settings {
 export const PRODUCTION_SETTINGS: Settings = {
   leaseSeconds: 900,
   attentionFraction: 0.1,
+  attentionKey: "panelist",
   attentionWindow: 10,
   attentionMinChecks: 3,
   attentionThreshold: 0.7,
