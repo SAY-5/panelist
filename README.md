@@ -65,63 +65,69 @@ PANELIST DEMO SUMMARY
 ========================================================================
 experts: 40  tasks: 500 (golden: 50)  seed: 7
 config: attention fraction 0.2, window 10, min checks 2, threshold 0.7, lease 3s
-claims by matched tag (681 claims; a claim matching two of the expert's tags counts under both): biology=95, finance=88, law=81, math=111, medicine=80, python=80, security=65, writing=99
+machine: Darwin 25.0.0 arm64, 10 CPUs, PostgreSQL 16.14, Python 3.12.13, load average 15.15, 12.99, 10.83 at the start of the run, 12.22, 12.55, 10.78 at this summary
+claims by matched tag (664 claims; a claim matching two of the expert's tags counts under both): biology=94, finance=80, law=83, math=106, medicine=73, python=78, security=70, writing=96
 tag mismatches: 0
 double-assignment attempts blocked: 40/40  (concurrent first claims: 40, unique: 40)
 expired leases reclaimed: 2 (admin sweep: 0)
-attention checks served: 148  failed: 4
+attention checks served: 132  failed: 4
 experts paused: 2 ['expert-04', 'expert-18']
-grades stored: 681  approved: 667  rejected: 4  regraded after rejection: 3
+grades stored: 664  approved: 656  rejected: 2  regraded after rejection: 1
 tier moves: 47 (47 up, 0 down)  experts by tier: junior=2, senior=0, lead=38
-adjudications: 5 resolved by the senior reviewer, 5 outvoted grades paid at partial (0.5)
+adjudications: 3 resolved by the senior reviewer, 3 outvoted grades paid at partial (0.5)
 task status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 450, 'rejected': 0}
-payouts created: 677  statement 2026-09-A: 666 payouts, $5,355.00 to 38 experts
-payout ledger: {'pending': 0, 'withheld': 3900, 'paid': 535500}  withheld: $39.00
-inter-rater agreement: 83 multi-graded tasks, 332 score pairs, mean abs diff 0.560, exact 50.6%, within one 94.3%
-criterion means: accuracy=3.67, completeness=3.63, clarity=3.74, safety=3.59
-delivery v1: 450 rows, 317,832 bytes, sha256 8880674f5ac78b75b414354a38cf1534cf54a05ac30f0cb623865216bcec908f
-delivery location: s3://panelist-deliveries/deliveries/panelist-grades-v1-8880674f5ac7.jsonl  (s3 (http://localhost:4569))
-grading wall time: 20.6s  claim latency over 797 claims: p50 331.7ms  p95 540.0ms
+payouts created: 662  statement 2026-09-A: 653 payouts, $5,200.50 to 38 experts
+payout ledger: {'pending': 0, 'withheld': 2850, 'paid': 520050}  withheld: $28.50
+inter-rater agreement: 82 multi-graded tasks, 328 score pairs, mean abs diff 0.567, exact 52.1%, within one 92.4%
+criterion means: accuracy=3.67, completeness=3.65, clarity=3.72, safety=3.61
+delivery v1: 450 rows, 317,807 bytes, sha256 847a92f671e2778f7ee5c4c15044b3d5aaa1018c4231bb3f0a85cbea6e15f5b3
+delivery location: s3://panelist-deliveries/deliveries/panelist-grades-v1-847a92f671e2.jsonl  (s3 (http://localhost:4569))
+grading wall time: 18.4s  claim latency over 780 claims: p50 301.2ms  p95 419.6ms
 ------------------------------------------------------------------------
 OPS OVERVIEW (GET /ops/overview)
 queue depth by tag: biology=12, finance=4, law=8, math=9, medicine=12, python=5, security=8, writing=12
 tasks by status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 450, 'rejected': 0}  expired leases: 0
 paused experts: 2 ['expert-04', 'expert-18']  adjudication backlog: 0
-period 2026-09-A: 0 payouts ($0.00) not yet in a statement, $39.00 withheld
-last delivery: v1, 450 rows, 2026-09-27T00:31:40.466911Z
+period 2026-09-A: 0 payouts ($0.00) not yet in a statement, $28.50 withheld
+last delivery: v1, 450 rows, 2026-09-27T05:40:02.382784Z
 tick: reclaimed 0, scored 40 experts, 0 tier moves
+  reminder: 1 experts have fewer than 5 calibration signals
 ========================================================================
 ```
 
-Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. The two paused experts are the careless ones; their approved grades are the $39.00 withheld from the statement. The delivery carries 450 rows for 450 approved tasks: the 83 multi-graded tasks contribute the one grade their consensus round selected, not both. Five tasks fell outside the consensus tolerance and were settled by the senior reviewer, whose outvoted graders were paid half the card rate under the `partial` rule. Nothing is left in `rejected`: a rejected grade on a single-grader task sends the task back to the queue, and the three tasks that happened to were regraded by someone else. Tier moves run one way here because the spot-check reviewer approves 667 of 681 grades, so nearly every expert clears the promote edge; demotion needs a disagreement streak, which the test suite exercises directly. The tick reports nothing to chase because it runs after the statement close, with the adjudication queue already empty. The demo raises the served attention share to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
+Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. Both careless experts were paused in this run; their approved grades are the $28.50 withheld from the statement, and how many of the two a run pauses is not fixed, which the next paragraph sets out. The delivery carries 450 rows for 450 approved tasks: the 82 multi-graded tasks contribute the one grade their consensus round selected, not both. Three tasks fell outside the consensus tolerance and were settled by the senior reviewer, whose outvoted graders were paid half the card rate under the `partial` rule. Nothing is left in `rejected` at the end: a rejected grade on a single-grader task sends the task back to the queue, where a later round grades it again. Tier moves run one way here because the spot-check reviewer approves 656 of 664 grades, so nearly every expert clears the promote edge; demotion needs a disagreement streak, which the test suite exercises directly. The tick reclaims nothing and moves no tier because it runs after the statement close with the adjudication queue already empty; its one reminder counts the experts holding fewer than the five calibration signals a score needs, one of them here. The demo raises the served attention share to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
 
-What the seed fixes and what it does not: `seed: 7` fixes the expert roster with their tags and tiers, which two experts grade carelessly and which two abandon their first claim, the task set with its tags, types and priorities, which tasks are golden, the reference scores behind every task and each expert's grading noise. It does not fix which expert claims which task, because 40 threads race for rows: the per-tag claim counts, the number of checks served, which of the careless experts are served enough checks to fail two and be paused, which grades a reviewer rejects, the agreement statistics, the delivery checksum and every duration change from run to run. The block above is one run at commit df7ae50 on macOS 25.0.0 arm64 with 10 CPUs and PostgreSQL 16.14 under Python 3.12.13, with the machine's load average between 20 and 28 while it ran; `docs/demo-2026-09-26.json` is that run's artifact, and `make demo-check` rebuilds the world from the seed and compares its fingerprint with the one recorded there. Claim latency is measured client side with 40 threads against a single in-process uvicorn worker, so it is a contention figure, not a per-request cost; `uv run python -m sim.bench` measures both separately.
+What the seed fixes and what it does not: `seed: 7` fixes the expert roster with their tags and tiers, which two experts grade carelessly and which two abandon their first claim, the task set with its tags, types and priorities, which tasks are golden, the reference scores behind every task and each expert's grading noise. It does not fix which expert claims which task, because 40 threads race for rows: the per-tag claim counts, the number of checks served, how many of the two careless experts are paused, which grades a reviewer rejects, the agreement statistics, the delivery checksum and every duration change from run to run. The pause count is worth spelling out, because a single run reads like a rule: the guard acts only once it holds `ATTENTION_MIN_CHECKS` of an expert's checks (two in the demo) and their rolling pass rate is under the threshold, so a careless expert who has failed one is paused on their second check, while one served a single check stays active however badly they graded it. Fifteen runs of the demo at this configuration on one machine paused both careless experts in fourteen of them and one in the fifteenth, where the other careless expert had been served a single check. Only those two can fail a check at all: a careful grade stays within one of the reference score and the tolerance is one. The block above is one run at commit 67dae00 on macOS 25.0.0 arm64 with 10 CPUs and PostgreSQL 16.14 under Python 3.12.13; `docs/demo-2026-09-26.json` is that run's artifact, its `environment` block records the one, five and fifteen minute load averages at the run's start and end (15.15 and 12.22 over one minute), and `make demo-check` rebuilds the world from the seed and compares its fingerprint with the one recorded there. Claim latency is measured client side with 40 threads against a single in-process uvicorn worker, so it is a contention figure, not a per-request cost; `uv run python -m sim.bench` measures both separately.
 
 ### Claim-path benchmark
 
 `uv run python -m sim.bench` seeds one tag's worth of experts and tasks, then claims twice: once
 with a single claimant, once with all of them, so the cost of a claim can be told apart from the
-cost of queueing behind other claimants. Measured at commit df7ae50 on macOS 25.0.0 arm64, 10
-CPUs, PostgreSQL 16.14 in the compose container, load average between 22 and 27 while the runs
-happened, which is a busy machine and inflates every number below:
+cost of queueing behind other claimants. Measured at commit 2c2f963 on macOS 25.0.0 arm64, 10
+CPUs, PostgreSQL 16.14 in the compose container, three rounds of both servers with the database
+reset before each run. Each run prints its own load average; across the six the one minute
+average at the start ran from 7.16 to 9.61 on this 10 CPU machine, so every number below carries
+a busy machine's queueing. The three readings of each figure are the three rounds, in order:
 
-| claimants | API | claims | p50 | p95 | claims/s | tasks handed to two claimants |
+| claimants | API | claims | p50 ms | p95 ms | claims/s | tasks handed to two claimants |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | one worker, in process | 50 | 13.3 ms | 16.1 ms | 68.5 | 0 |
-| 40 | one worker, in process | 520 | 294.9 ms | 472.4 ms | 125.0 | 0 |
-| 1 | `uvicorn --workers 4` | 50 | 21.4 ms | 48.3 ms | 39.3 | 0 |
-| 40 | `uvicorn --workers 4` | 520 | 144.7 ms | 350.1 ms | 234.4 | 0 |
+| 1 | one worker, in process | 50 | 13.0, 12.5, 10.6 | 17.1, 17.7, 14.0 | 69.5, 73.7, 84.4 | 0 |
+| 40 | one worker, in process | 520 | 263.6, 271.1, 258.6 | 347.3, 366.4, 355.8 | 145.7, 139.7, 146.3 | 0 |
+| 1 | `uvicorn --workers 4` | 50 | 12.2, 13.1, 11.7 | 25.1, 17.9, 17.4 | 69.4, 61.9, 78.7 | 0 |
+| 40 | `uvicorn --workers 4` | 520 | 114.4, 133.6, 137.8 | 284.8, 357.9, 269.8 | 248.4, 238.9, 226.4 | 0 |
 
-A claim costs about 13 ms when nothing competes for the worker. The 295 ms at 40 claimants is
-almost entirely queueing: four workers halve it and nearly double throughput on the same
-database, because `FOR UPDATE SKIP LOCKED` lets the four processes claim different rows rather
-than wait on each other. No task was ever handed to two claimants in any of the four phases. The
-single-claimant row is slower against the four-worker server because each request crosses a real
-socket to another process instead of staying in this one.
+A claim costs 10.6 to 13.1 ms when nothing competes for the worker, on either server. The 259 to 271 ms at 40
+claimants against one worker is almost entirely queueing: four workers bring the p50 down to 114
+to 138 ms and throughput up from 140 to 146 claims a second to 226 to 248, because
+`FOR UPDATE SKIP LOCKED` lets the four processes claim different rows rather than wait on each
+other. No task was ever handed to two claimants in any phase of any round. The single-claimant
+rows do not separate the two servers: their p50 ranges overlap (10.6 to 13.0 ms in process, 11.7
+to 13.1 ms across a socket to four workers) and which one is ahead changes from round to round,
+so this table says nothing about what the socket hop costs.
 
 ### Browser demo
 
-`web/` is a static Vite and React page that runs a TypeScript port of the 1.0.0 service layer, routing, grading, attention checks, payouts, analytics and delivery, with a seeded PRNG and a virtual clock in place of PostgreSQL and the wall clock. It steps the 500-task scenario of `sim/demo.py` in the browser under those rules and prints the 1.0.0 summary block, so the claim race, the attention guard, the rate card and the delivery checksum can be poked at without a database. Rubric versions (2.0.0), calibration (3.0.0), consensus and adjudication (4.0.0) and the ops overview (5.0.0) are not modelled: the port delivers every approved grade of a multi-graded task where the service delivers the one its consensus round selected, and its summary has no tier, adjudication or ops lines. The port has its own PRNG, so its totals differ from the run above; the invariants hold in both: zero tag mismatches, every double claim blocked, a careless expert paused by the attention guard, withheld money outside the statement. `npm install && npm run dev` inside `web/`. `npm run selfcheck` runs the port's own assertions and then replays `tests/fixtures/port_conformance.json`, a fixed scenario that `tests/test_port_conformance.py` runs through the PostgreSQL service: the port must reproduce every recorded claim, grade, attention verdict, payout, statement total, ledger, agreement statistic and the JSONL body's sha256. Its stylesheet tokens are checked for WCAG AA contrast in the same run. `make web-check` runs the typecheck, the selfcheck, the production bundle and `npm run size`, which holds the gzipped JavaScript under 73,728 bytes. CI runs the same steps in its `web` job. The page labels its own figures: the counters are a simulated run rather than a measurement, the only measured number is the compute time the run took, its storage line says in-memory rather than S3, and its run parameters are read off the simulation instead of typed into the copy. `web/vercel.json` builds it for a static host; no deployment of this page is claimed here, and the standalone showcase at showcases-lime.vercel.app/panelist is a different implementation with its own figures.
+`web/` is a static Vite and React page that runs a TypeScript port of the 1.0.0 service layer, routing, grading, attention checks, payouts, analytics and delivery, with a seeded PRNG and a virtual clock in place of PostgreSQL and the wall clock. It steps the 500-task scenario of `sim/demo.py` in the browser under those rules and prints the 1.0.0 summary block, so the claim race, the attention guard, the rate card and the delivery checksum can be poked at without a database. Rubric versions (2.0.0), calibration (3.0.0), consensus and adjudication (4.0.0) and the ops overview (5.0.0) are not modelled: the port delivers every approved grade of a multi-graded task where the service delivers the one its consensus round selected, and its summary has no tier, adjudication or ops lines. The port has its own PRNG, so its totals differ from the run above; what holds in both is what the code enforces, not what one run happened to produce: zero tag mismatches, every double claim blocked, nobody paused but a careless expert, withheld money outside the statement. The page's comparison table marks the number of paused experts as varying between service runs rather than holding, because it does. `npm install && npm run dev` inside `web/`. `npm run selfcheck` runs the port's own assertions and then replays `tests/fixtures/port_conformance.json`, a fixed scenario that `tests/test_port_conformance.py` runs through the PostgreSQL service: the port must reproduce every recorded claim, grade, attention verdict, payout, statement total, ledger, agreement statistic and the JSONL body's sha256. Its stylesheet tokens are checked for WCAG AA contrast in the same run. `make web-check` runs the typecheck, the selfcheck, the production bundle and `npm run size`, which holds the gzipped JavaScript under 73,728 bytes. CI runs the same steps in its `web` job. The page labels its own figures: the counters are a simulated run rather than a measurement, the only measured number is the compute time the run took, its storage line says in-memory rather than S3, and its run parameters are read off the simulation instead of typed into the copy. `web/vercel.json` builds it for a static host; no deployment of this page is claimed here, and the standalone showcase at showcases-lime.vercel.app/panelist is a different implementation with its own figures.
 
 ## API
 

@@ -96,7 +96,9 @@ export function Hero() {
         </div>
         <p className="hero-note">
           Deterministic simulation with its own PRNG, not a measurement of the service: the totals
-          differ from the PostgreSQL run in the README, the invariants hold in both.
+          differ from the recorded PostgreSQL run, and the rules the code enforces hold in both.
+          The comparison table below says which rows those are, and which the service leaves to the
+          claim race.
         </p>
         <p className="sr" role="status">
           {spoken}
