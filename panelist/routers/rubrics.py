@@ -54,13 +54,9 @@ def publish_version(
     previous = db.get(Rubric, rubric_id)
     if previous is None:
         raise HTTPException(404, "rubric not found")
-    try:
-        rubric, migrated, open_on_previous = rubrics.publish(
-            db, previous, [c.model_dump() for c in body.criteria], principal.actor
-        )
-    except rubrics.RubricError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, e.detail) from e
+    rubric, migrated, open_on_previous = rubrics.publish(
+        db, previous, [c.model_dump() for c in body.criteria], principal.actor
+    )
     db.commit()
     return schemas.RubricPublishOut(
         rubric=schemas.RubricOut.model_validate(rubric),

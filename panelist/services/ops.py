@@ -2,17 +2,21 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from panelist.config import get_settings
 from panelist.models import (
+    Consensus,
     Delivery,
     Expert,
     ExpertStatus,
+    Grade,
     Payout,
     PayoutPeriod,
     PayoutStatus,
+    Review,
+    ReviewDecision,
     Task,
     TaskStatus,
 )
@@ -36,6 +40,47 @@ def _expired_leases(db: Session) -> int:
         )
         or 0
     )
+
+
+def _undelivered_approved(db: Session) -> int:
+    """Approved consensus tasks whose selected grade is not approved, so the export skips them."""
+    approved_pick = (
+        select(Review.id)
+        .where(
+            Review.grade_id == Consensus.delivered_grade_id,
+            Review.decision == ReviewDecision.approve,
+        )
+        .exists()
+    )
+    return int(
+        db.scalar(
+            select(func.count(Task.id))
+            .join(Consensus, Consensus.task_id == Task.id)
+            .where(
+                and_(Task.status == TaskStatus.approved, Task.is_attention_check.is_(False)),
+                ~approved_pick,
+            )
+        )
+        or 0
+    )
+
+
+def _rejected_twice(db: Session) -> int:
+    """Single-grader tasks a reviewer has sent back to the queue at least twice."""
+    per_task = (
+        select(Grade.task_id)
+        .join(Review, Review.grade_id == Grade.id)
+        .join(Task, Task.id == Grade.task_id)
+        .where(
+            Review.decision == ReviewDecision.reject,
+            Task.required_grades == 1,
+            Task.is_attention_check.is_(False),
+        )
+        .group_by(Grade.task_id)
+        .having(func.count(Review.id) >= 2)
+        .subquery()
+    )
+    return int(db.scalar(select(func.count()).select_from(per_task)) or 0)
 
 
 def _period_status(db: Session) -> dict:
@@ -81,7 +126,14 @@ def _days_since(moment: datetime | None) -> float | None:
     return (datetime.now(UTC) - moment).total_seconds() / 86400
 
 
-def _reminders(settings, uncalibrated: int, period: dict, backlog: int) -> list[str]:
+def _reminders(
+    settings,
+    uncalibrated: int,
+    period: dict,
+    backlog: int,
+    rejected_twice: int,
+    undelivered: int,
+) -> list[str]:
     age = _days_since(period["closed_at"])
     out = []
     if uncalibrated:
@@ -97,6 +149,13 @@ def _reminders(settings, uncalibrated: int, period: dict, backlog: int) -> list[
         )
     if backlog:
         out.append(f"{backlog} tasks are waiting for adjudication")
+    if rejected_twice:
+        out.append(f"{rejected_twice} tasks have been rejected twice and are back in the queue")
+    if undelivered:
+        out.append(
+            f"{undelivered} approved tasks have no delivered grade:"
+            " the consensus pick is unreviewed"
+        )
     return out
 
 
@@ -122,6 +181,8 @@ def tick(db: Session, actor: str = "system:tick") -> dict:
 
     period = _period_status(db)
     backlog = consensus.backlog(db)
+    rejected_twice = _rejected_twice(db)
+    undelivered = _undelivered_approved(db)
     audit.record(
         db,
         actor,
@@ -140,5 +201,9 @@ def tick(db: Session, actor: str = "system:tick") -> dict:
         "unbilled_payouts": period["unbilled_payouts"],
         "unbilled_cents": period["unbilled_cents"],
         "days_since_period_close": None if age is None else round(age, 2),
-        "reminders": _reminders(settings, uncalibrated, period, backlog),
+        "rejected_twice": rejected_twice,
+        "undelivered_approved": undelivered,
+        "reminders": _reminders(
+            settings, uncalibrated, period, backlog, rejected_twice, undelivered
+        ),
     }

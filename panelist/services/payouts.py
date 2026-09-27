@@ -20,13 +20,11 @@ from panelist.models import (
     Tier,
 )
 from panelist.services import audit
+from panelist.services.errors import ServiceError
 
 
-class PayoutError(Exception):
-    def __init__(self, status_code: int, detail: str):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.detail = detail
+class PayoutError(ServiceError):
+    pass
 
 
 def rate_for(db: Session, expert: Expert, task_type: str) -> int:

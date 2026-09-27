@@ -29,6 +29,7 @@ export interface DemoSummary {
   gradesStored: number;
   approved: number;
   rejected: number;
+  regraded: number;
   taskStatus: Record<TaskStatus, number>;
   payoutsCreated: number;
   period: PeriodTotals;
@@ -74,20 +75,20 @@ export function formatSummary(s: DemoSummary, timing: Timing | null = null): str
     RULE,
     `experts: ${s.experts}  tasks: ${s.tasks} (golden: ${s.golden})  seed: ${s.seed}`,
     `config: attention fraction ${st.attentionFraction}, window ${st.attentionWindow}, min checks ${st.attentionMinChecks}, threshold ${st.attentionThreshold}, lease ${st.leaseSeconds}s`,
-    `tasks routed by tag (${s.claims} claims): ${byTag}`,
+    `claims by matched tag (${s.claims} claims; a claim matching two of the expert's tags counts under both): ${byTag}`,
     `tag mismatches: ${s.mismatches}`,
     `double-assignment attempts blocked: ${s.doubleBlocked}/${s.doubleAttempts}  (concurrent first claims: ${s.concurrentFirstClaims}, unique: ${s.uniqueFirstClaims})`,
     `expired leases reclaimed: ${s.reclaims} (admin sweep: ${s.adminSweepReclaimed})`,
     `attention checks served: ${s.checksServed}  failed: ${s.checksFailed}`,
     `experts paused: ${s.paused.length} ${pyList(s.paused)}`,
-    `grades stored: ${s.gradesStored}  approved: ${s.approved}  rejected: ${s.rejected}`,
+    `grades stored: ${s.gradesStored}  approved: ${s.approved}  rejected: ${s.rejected}  regraded after rejection: ${s.regraded}`,
     `task status: ${pyDict(s.taskStatus)}`,
     `payouts created: ${s.payoutsCreated}  statement ${s.period.label}: ${s.period.payoutCount} payouts, ${dollars(s.period.totalCents)} to ${s.period.expertCount} experts`,
     `payout ledger: ${pyDict(s.ledger.totalsByStatus)}  withheld: ${dollars(s.ledger.totalsByStatus.withheld)}`,
     `inter-rater agreement: ${s.agreement.multiGradedTasks} multi-graded tasks, ${s.agreement.comparedPairs} score pairs, mean abs diff ${(s.agreement.meanAbsDiff ?? 0).toFixed(3)}, exact ${pct(s.agreement.exactAgreement)}, within one ${pct(s.agreement.withinOne)}`,
     `criterion means: ${s.criteria.map((c) => `${c.key}=${c.mean.toFixed(2)}`).join(", ")}`,
     `delivery v${s.delivery.version}: ${s.delivery.rowCount} rows, ${s.delivery.sizeBytes.toLocaleString("en-US")} bytes, sha256 ${s.delivery.checksum}`,
-    `delivery location: ${s.delivery.location}  (${s.storage})`,
+    `delivery would be stored at: ${s.delivery.location}  (${s.storage})`,
   ];
   if (timing) {
     const lat = [...timing.latenciesMs].sort((a, b) => a - b);

@@ -21,16 +21,22 @@ Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 16, Prometheus, Terrafor
   |  /reviews     ---> approve/reject, payout at rate card    |
   |  /payouts     ---> ledger, period close, CSV statement    |
   |  /analytics   ---> criterion means, inter-rater agreement |
-  |  /deliveries  ---> versioned JSONL, sha256, S3 or disk    |
+  |  /adjudications --> k-grader disagreements; a senior      |
+  |                    reviewer picks the grade that ships    |
+  |  /deliveries  ---> versioned JSONL, sha256, S3 or disk;   |
+  |                    verify reads the object back           |
+  |  /ops         ---> overview, audit CSV, scheduler tick    |
   |  /metrics     ---> Prometheus                             |
   +-----------------------------+-----------------------------+
                                 |
                 +---------------+----------------+
                 v                                v
      PostgreSQL 16 (RDS)                 S3 bucket (deliveries)
-     experts, tasks, rubrics,            panelist-grades-vN-<sha>.jsonl
-     grades, grade_scores, reviews,
-     payouts, attention_results,
+     experts, tier_changes, tasks,       panelist-grades-vN-<sha>.jsonl
+     rubrics, rate_cards, grades,
+     grade_scores, reviews, consensus,
+     payouts, payout_periods,
+     attention_results, deliveries,
      audit_events, api_keys
 ```
 
@@ -42,6 +48,8 @@ make demo         # compose up (postgres + LocalStack), migrate, seed, simulate,
 make test         # pytest against a Testcontainers PostgreSQL (or TEST_DATABASE_URL)
 make lint         # ruff check + format check
 make tf-validate  # terraform fmt + validate
+make web-check    # browser port: npm ci, typecheck, selfcheck, production bundle, size budget
+make demo-check   # rebuild the seeded world and compare it with the committed run artifact
 make demo-down    # stop the local stack
 ```
 
@@ -57,39 +65,69 @@ PANELIST DEMO SUMMARY
 ========================================================================
 experts: 40  tasks: 500 (golden: 50)  seed: 7
 config: attention fraction 0.2, window 10, min checks 2, threshold 0.7, lease 3s
-tasks routed by tag (651 claims): biology=111, finance=95, law=89, math=86, medicine=82, python=65, security=59, writing=64
+machine: Darwin 25.0.0 arm64, 10 CPUs, PostgreSQL 16.14, Python 3.12.13, load average 15.15, 12.99, 10.83 at the start of the run, 12.22, 12.55, 10.78 at this summary
+claims by matched tag (664 claims; a claim matching two of the expert's tags counts under both): biology=94, finance=80, law=83, math=106, medicine=73, python=78, security=70, writing=96
 tag mismatches: 0
 double-assignment attempts blocked: 40/40  (concurrent first claims: 40, unique: 40)
 expired leases reclaimed: 2 (admin sweep: 0)
-attention checks served: 120  failed: 4
+attention checks served: 132  failed: 4
 experts paused: 2 ['expert-04', 'expert-18']
-grades stored: 651  approved: 645  rejected: 4
+grades stored: 664  approved: 656  rejected: 2  regraded after rejection: 1
 tier moves: 47 (47 up, 0 down)  experts by tier: junior=2, senior=0, lead=38
-adjudications: 1 resolved by the senior reviewer, 1 outvoted grades paid at partial (0.5)
-task status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 448, 'rejected': 2}
-payouts created: 647  statement 2026-09-A: 633 payouts, $5,036.00 to 38 experts
-payout ledger: {'pending': 0, 'withheld': 4500, 'paid': 503600}  withheld: $45.00
-inter-rater agreement: 81 multi-graded tasks, 324 score pairs, mean abs diff 0.515, exact 53.4%, within one 95.1%
-criterion means: accuracy=3.67, completeness=3.61, clarity=3.65, safety=3.65
-delivery v1: 448 rows, 316,403 bytes, sha256 131380265e20b1ea87504aefd7b243d4a0ae80000765019d65c021d5c85e6654
-delivery location: s3://panelist-deliveries/deliveries/panelist-grades-v1-131380265e20.jsonl  (s3 (http://localhost:4569))
-grading wall time: 15.1s  claim latency over 729 claims: p50 250.8ms  p95 339.7ms
+adjudications: 3 resolved by the senior reviewer, 3 outvoted grades paid at partial (0.5)
+task status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 450, 'rejected': 0}
+payouts created: 662  statement 2026-09-A: 653 payouts, $5,200.50 to 38 experts
+payout ledger: {'pending': 0, 'withheld': 2850, 'paid': 520050}  withheld: $28.50
+inter-rater agreement: 82 multi-graded tasks, 328 score pairs, mean abs diff 0.567, exact 52.1%, within one 92.4%
+criterion means: accuracy=3.67, completeness=3.65, clarity=3.72, safety=3.61
+delivery v1: 450 rows, 317,807 bytes, sha256 847a92f671e2778f7ee5c4c15044b3d5aaa1018c4231bb3f0a85cbea6e15f5b3
+delivery location: s3://panelist-deliveries/deliveries/panelist-grades-v1-847a92f671e2.jsonl  (s3 (http://localhost:4569))
+grading wall time: 18.4s  claim latency over 780 claims: p50 301.2ms  p95 419.6ms
 ------------------------------------------------------------------------
 OPS OVERVIEW (GET /ops/overview)
 queue depth by tag: biology=12, finance=4, law=8, math=9, medicine=12, python=5, security=8, writing=12
-tasks by status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 448, 'rejected': 2}  expired leases: 0
+tasks by status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 450, 'rejected': 0}  expired leases: 0
 paused experts: 2 ['expert-04', 'expert-18']  adjudication backlog: 0
-period 2026-09-A: 0 payouts ($0.00) not yet in a statement, $45.00 withheld
-last delivery: v1, 448 rows, 2026-09-10T09:23:24.500719Z
+period 2026-09-A: 0 payouts ($0.00) not yet in a statement, $28.50 withheld
+last delivery: v1, 450 rows, 2026-09-27T05:40:02.382784Z
 tick: reclaimed 0, scored 40 experts, 0 tier moves
+  reminder: 1 experts have fewer than 5 calibration signals
 ========================================================================
 ```
 
-Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. The two paused experts are the careless ones; their 14 approved grades are the $45.00 withheld from the statement. The delivery carries 448 rows for 448 approved tasks: the 81 multi-graded tasks contribute the one grade their consensus round selected, not both. One task fell outside the consensus tolerance and was settled by the senior reviewer, whose outvoted grader was paid half the card rate under the `partial` rule. Tier moves run one way here because the spot-check reviewer approves 645 of 651 grades, so nearly every expert clears the promote edge; demotion needs a disagreement streak, which the test suite exercises directly. The tick reports nothing to chase because it runs after the statement close, with the adjudication queue already empty. Claim latency is measured client side with 40 threads hammering a single in-process uvicorn worker. The demo raises the served attention fraction to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
+Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. Both careless experts were paused in this run; their approved grades are the $28.50 withheld from the statement, and how many of the two a run pauses is not fixed, which the next paragraph sets out. The delivery carries 450 rows for 450 approved tasks: the 82 multi-graded tasks contribute the one grade their consensus round selected, not both. Three tasks fell outside the consensus tolerance and were settled by the senior reviewer, whose outvoted graders were paid half the card rate under the `partial` rule. Nothing is left in `rejected` at the end: a rejected grade on a single-grader task sends the task back to the queue, where a later round grades it again. Tier moves run one way here because the spot-check reviewer approves 656 of 664 grades, so nearly every expert clears the promote edge; demotion needs a disagreement streak, which the test suite exercises directly. The tick reclaims nothing and moves no tier because it runs after the statement close with the adjudication queue already empty; its one reminder counts the experts holding fewer than the five calibration signals a score needs, one of them here. The demo raises the served attention share to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
+
+What the seed fixes and what it does not: `seed: 7` fixes the expert roster with their tags and tiers, which two experts grade carelessly and which two abandon their first claim, the task set with its tags, types and priorities, which tasks are golden, the reference scores behind every task and each expert's grading noise. It does not fix which expert claims which task, because 40 threads race for rows: the per-tag claim counts, the number of checks served, how many of the two careless experts are paused, which grades a reviewer rejects, the agreement statistics, the delivery checksum and every duration change from run to run. The pause count is worth spelling out, because a single run reads like a rule: the guard acts only once it holds `ATTENTION_MIN_CHECKS` of an expert's checks (two in the demo) and their rolling pass rate is under the threshold, so a careless expert who has failed one is paused on their second check, while one served a single check stays active however badly they graded it. Fifteen runs of the demo at this configuration on one machine paused both careless experts in fourteen of them and one in the fifteenth, where the other careless expert had been served a single check. Only those two can fail a check at all: a careful grade stays within one of the reference score and the tolerance is one. The block above is one run at commit 67dae00 on macOS 25.0.0 arm64 with 10 CPUs and PostgreSQL 16.14 under Python 3.12.13; `docs/demo-2026-09-26.json` is that run's artifact, its `environment` block records the one, five and fifteen minute load averages at the run's start and end (15.15 and 12.22 over one minute), and `make demo-check` rebuilds the world from the seed and compares its fingerprint with the one recorded there. Claim latency is measured client side with 40 threads against a single in-process uvicorn worker, so it is a contention figure, not a per-request cost; `uv run python -m sim.bench` measures both separately.
+
+### Claim-path benchmark
+
+`uv run python -m sim.bench` seeds one tag's worth of experts and tasks, then claims twice: once
+with a single claimant, once with all of them, so the cost of a claim can be told apart from the
+cost of queueing behind other claimants. Measured at commit 2c2f963 on macOS 25.0.0 arm64, 10
+CPUs, PostgreSQL 16.14 in the compose container, three rounds of both servers with the database
+reset before each run. Each run prints its own load average; across the six the one minute
+average at the start ran from 7.16 to 9.61 on this 10 CPU machine, so every number below carries
+a busy machine's queueing. The three readings of each figure are the three rounds, in order:
+
+| claimants | API | claims | p50 ms | p95 ms | claims/s | tasks handed to two claimants |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | one worker, in process | 50 | 13.0, 12.5, 10.6 | 17.1, 17.7, 14.0 | 69.5, 73.7, 84.4 | 0 |
+| 40 | one worker, in process | 520 | 263.6, 271.1, 258.6 | 347.3, 366.4, 355.8 | 145.7, 139.7, 146.3 | 0 |
+| 1 | `uvicorn --workers 4` | 50 | 12.2, 13.1, 11.7 | 25.1, 17.9, 17.4 | 69.4, 61.9, 78.7 | 0 |
+| 40 | `uvicorn --workers 4` | 520 | 114.4, 133.6, 137.8 | 284.8, 357.9, 269.8 | 248.4, 238.9, 226.4 | 0 |
+
+A claim costs 10.6 to 13.1 ms when nothing competes for the worker, on either server. The 259 to
+271 ms at 40 claimants against one worker is almost entirely queueing: four workers bring the p50
+down to 114 to 138 ms and throughput up from 140 to 146 claims a second to 226 to 248, because
+`FOR UPDATE SKIP LOCKED` lets the four processes claim different rows rather than wait on each
+other. No task was ever handed to two claimants in any phase of any round. The single-claimant
+rows do not separate the two servers: their p50 ranges overlap (10.6 to 13.0 ms in process, 11.7
+to 13.1 ms across a socket to four workers) and which one is ahead changes from round to round,
+so this table says nothing about what the socket hop costs.
 
 ### Browser demo
 
-`web/` is a static Vite and React page that runs the routing, grading, attention, payout, analytics and delivery services as a TypeScript port, with a seeded PRNG and a virtual clock in place of PostgreSQL and the wall clock. It steps the same 500-task scenario in the browser and prints the same summary block, so the claim race, the attention guard, the rate card and the delivery checksum can be poked at without a database. `npm install && npm run dev` inside `web/`, and `npm run selfcheck` runs the assertions that hold the port to the service's behaviour.
+`web/` is a static Vite and React page that runs a TypeScript port of the 1.0.0 service layer, routing, grading, attention checks, payouts, analytics and delivery, with a seeded PRNG and a virtual clock in place of PostgreSQL and the wall clock. It steps the 500-task scenario of `sim/demo.py` in the browser under those rules and prints the 1.0.0 summary block, so the claim race, the attention guard, the rate card and the delivery checksum can be poked at without a database. Rubric versions (2.0.0), calibration (3.0.0), consensus and adjudication (4.0.0) and the ops overview (5.0.0) are not modelled: the port delivers every approved grade of a multi-graded task where the service delivers the one its consensus round selected, and its summary has no tier, adjudication or ops lines. The port has its own PRNG, so its totals differ from the run above; what holds in both is what the code enforces, not what one run happened to produce: zero tag mismatches, every double claim blocked, nobody paused but a careless expert, withheld money outside the statement. The page's comparison table marks the number of paused experts as varying between service runs rather than holding, because it does. `npm install && npm run dev` inside `web/`. `npm run selfcheck` runs the port's own assertions and then replays `tests/fixtures/port_conformance.json`, a fixed scenario that `tests/test_port_conformance.py` runs through the PostgreSQL service: the port must reproduce every recorded claim, grade, attention verdict, payout, statement total, ledger, agreement statistic and the JSONL body's sha256. Its stylesheet tokens are checked for WCAG AA contrast in the same run. `make web-check` runs the typecheck, the selfcheck, the production bundle and `npm run size`, which holds the gzipped JavaScript under 73,728 bytes. CI runs the same steps in its `web` job. The page labels its own figures: the counters are a simulated run rather than a measurement, the only measured number is the compute time the run took, its storage line says in-memory rather than S3, and its run parameters are read off the simulation instead of typed into the copy. `web/vercel.json` builds it for a static host; no deployment of this page is claimed here, and the standalone showcase at showcases-lime.vercel.app/panelist is a different implementation with its own figures.
 
 ## API
 
@@ -101,10 +139,12 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | POST | `/experts/{id}/api-key` | experts:write | Issue an expert key |
 | GET | `/experts/me` | experts:self | Caller's expert profile |
 | GET | `/experts/{id}/attention` | tasks:read | Lifetime and rolling attention pass rate |
+| GET | `/experts/{id}` | tasks:read | One expert, including tier, tags and calibration score |
 | GET | `/experts/{id}/calibration` | tasks:read | Rolling agreement score, band settings and tier change history |
 | PATCH | `/experts/{id}/status` | experts:write | Pause, reinstate (releases withheld payouts) |
 | POST | `/rubrics` | rubrics:write | Versioned rubric with weighted, scaled criteria |
 | POST | `/rubrics/{id}/versions` | rubrics:write | Publish an immutable new version; queued tasks move to it, claimed tasks stay pinned |
+| GET | `/rubrics/{id}` | experts:self | One rubric version with its criteria, as an expert sees it |
 | PUT | `/rate-cards` | payouts:write | Rate per (tier, task type) |
 | POST | `/tasks` | tasks:write | Bulk create tasks, including golden ones |
 | POST | `/tasks/next` | tasks:claim | Claim the best eligible task (204 when none) |
@@ -115,6 +155,7 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | GET | `/tasks/{id}` | tasks:read | Full task, including hidden fields |
 | POST | `/grades` | grades:write | Submit rubric scores, rationale, time spent; optional `rubric_id` must match the pinned version (409 otherwise) |
 | GET | `/grades` | grades:read | Unreviewed grades |
+| GET | `/grades/{id}` | grades:read | One grade with its scores, rationale and review |
 | POST | `/reviews` | reviews:write | Approve or reject; approval creates the payout |
 | GET | `/adjudications` | tasks:read | Tasks whose graders disagreed, with every grade and the spread |
 | POST | `/adjudications/{task_id}` | adjudications:write | Pick the delivered grade; the rest are outvoted |
@@ -122,13 +163,19 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | GET | `/payouts/ledger` | payouts:read | Derived totals by expert and status |
 | POST | `/payouts/periods/close` | payouts:write | Batch pending payouts into a statement |
 | GET | `/payouts/periods/{id}/export.csv` | payouts:read | Statement as CSV |
+| GET | `/payouts/periods/{id}` | payouts:read | One statement with its totals |
 | GET | `/analytics/criteria` | analytics:read | Per-criterion mean, stddev, n |
 | GET | `/analytics/agreement` | analytics:read | Agreement between two experts |
+| GET | `/analytics/tasks/{id}/agreement` | analytics:read | Pairwise agreement between the graders of one task |
 | GET | `/analytics/agreement/global` | analytics:read | Agreement across all multi-graded tasks |
 | GET | `/analytics/experts/{id}/reliability` | analytics:read | Approval rate, attention rate, deviation from consensus |
-| GET | `/deliveries/export` | deliveries:write | Build and store a new dataset version |
+| POST | `/deliveries` | deliveries:write | Build, checksum and store a new dataset version |
+| GET | `/deliveries` | deliveries:read | Stored versions with checksum, location, row count and size |
+| GET | `/deliveries/{version}/verify` | deliveries:read | Read the stored object back and recompute its sha256, row count and size |
 | GET | `/ops/overview` | tasks:read | Queue depth by tag, paused experts, adjudication backlog, period status, last delivery |
 | GET | `/ops/audit.csv` | admin | Audit trail as CSV, filterable by action and start time |
+| POST | `/admin/api-keys` | admin | Issue a reviewer, senior reviewer or admin key |
+| DELETE | `/admin/api-keys/{id}` | admin | Revoke a key; it fails authentication from the next request on |
 | GET | `/metrics` | none | Prometheus metrics |
 | GET | `/healthz` | none | Liveness with a database round trip |
 
@@ -151,14 +198,14 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for routing, locking, attention-check, pa
 
 ## Deployment
 
-`deploy/terraform` provisions a VPC, an ECS Fargate service behind an ALB, RDS PostgreSQL 16, a Secrets Manager secret holding `DATABASE_URL` (injected into the task), a CloudWatch log group and an encrypted, versioned S3 bucket for deliveries. The task definition runs `alembic upgrade head` as a non-essential init container before the API starts.
+`deploy/terraform` provisions a VPC, an ECS Fargate service behind an ALB, RDS PostgreSQL 16, Secrets Manager secrets holding `DATABASE_URL` and `ATTENTION_KEY` (both injected into the task), a CloudWatch log group and an encrypted, versioned S3 bucket for deliveries. The task definition runs `alembic upgrade head` as a non-essential init container before the API starts. The tasks themselves sit in the public subnets with public IPs so they can reach ECR and Secrets Manager without a NAT gateway, and their security group admits only the ALB; the database stays private. Moving the tasks into the private subnets means paying for a NAT gateway or VPC endpoints, which this repository does not provision.
 
 ```bash
 make tf-validate                                     # fmt + validate, no credentials needed
 cd deploy/terraform && terraform plan -var-file=environments/dev.tfvars
 ```
 
-Honest note on AWS: this repository was built and verified without an AWS account. `terraform fmt` and `terraform validate` pass, and `terraform plan -var-file=environments/localstack.tfvars` against the compose LocalStack produces the full 34-resource plan (the only live calls during a plan are the availability-zone and identity data sources, which LocalStack Community serves). Applying ECS, RDS and ALB resources needs real credentials and has not been done here. Local runtime is `deploy/docker-compose.yml`: the API, PostgreSQL 16 and LocalStack S3. The `Dockerfile` is a multi-stage, non-root image built by the CI `image` job.
+Honest note on AWS: this repository was built and verified without an AWS account. `terraform fmt` and `terraform validate` pass, and `terraform plan -var-file=environments/localstack.tfvars` against the compose LocalStack produces the full 36-resource plan (the only live calls during a plan are the availability-zone and identity data sources, which LocalStack Community serves). Applying ECS, RDS and ALB resources needs real credentials and has not been done here. Local runtime is `deploy/docker-compose.yml`: the API, PostgreSQL 16 and LocalStack S3. The `Dockerfile` is a multi-stage, non-root image built by the CI `image` job.
 
 ## Configuration
 
@@ -167,6 +214,7 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 | `DATABASE_URL` | local compose URL | SQLAlchemy URL (psycopg 3) |
 | `LEASE_SECONDS` | 900 | Assignment lease before a task is reclaimable |
 | `ATTENTION_FRACTION` | 0.1 | Share of serves that prefer a golden task |
+| `ATTENTION_KEY` | panelist | Salts the hash that decides which serves carry a check; set a secret in production |
 | `ATTENTION_WINDOW` | 10 | Rolling window of checks per expert |
 | `ATTENTION_MIN_CHECKS` | 3 | Checks required before the guard can trip |
 | `ATTENTION_THRESHOLD` | 0.7 | Rolling pass rate below which the expert is paused |
@@ -178,17 +226,22 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 | `CONSENSUS_TOLERANCE` | 1.0 | Weighted-score spread a k-grader task may show before it needs adjudication |
 | `CONSENSUS_OUTVOTED_PAYOUT` | partial | Payout rule for outvoted graders: `full`, `partial` or `none` |
 | `CONSENSUS_OUTVOTED_RATE` | 0.5 | Fraction of the card rate paid under the `partial` rule |
+| `DELIVERY_DIR` | ./deliveries | Directory the export writes to when no bucket is set |
 | `DELIVERY_S3_BUCKET` | empty | When set, exports go to S3; otherwise `DELIVERY_DIR` |
 | `AWS_ENDPOINT_URL` | empty | Set for LocalStack |
+| `AWS_REGION` | us-east-1 | Region for the S3 client |
+| `LOG_LEVEL` | INFO | Level for the JSON application log |
+| `BOOTSTRAP_ADMIN_KEY` | empty | Read by `panelist bootstrap` when no key is given on the command line |
 
 ## Testing
 
-`make test` runs 56 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, exact `/ops/overview` counts on a seeded fixture, the scheduler tick and the audit export, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
+`make test` runs 69 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, exact `/ops/overview` counts on a seeded fixture, the scheduler tick and the audit export, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
 
 ## Releases
 
 | Version | Highlights |
 | --- | --- |
+| 5.1.0 | Correctness and honesty pass: one error handler, consensus redelivery and requeue of rejected tasks, `POST /deliveries` with a verify endpoint and a read scope, keyed attention scheduling, key revocation, documentation tables pinned by a test, and a browser port whose figures say what produced them |
 | 5.0.0 | Operations: `/ops/overview`, the `panelist tick` scheduler pass with lease reclaim and reminders, a CSV audit export, and gauges for the adjudication backlog, paused experts and tier distribution |
 | 4.0.0 | Consensus over k graders: agreement inside the tolerance picks the delivered grade, disagreement opens an adjudication queue for a senior reviewer, outvoted graders are paid by a configurable rule |
 | 3.0.0 | Expert calibration: rolling agreement with reviewers and golden answers, tier promotion and demotion with a hysteresis band, routing follows the live tier |

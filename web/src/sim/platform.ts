@@ -27,6 +27,20 @@ import {
   TIER_RANK,
 } from "./types";
 
+/**
+ * panelist/services/routing.py prefers_attention_check: whether serve number `serveIndex`
+ * for this expert prefers a golden task. A hash of the key, the expert id and the serve
+ * number replaces a countable every-Nth cadence, holds the configured share over many
+ * serves, and cannot be predicted without the key.
+ */
+export function prefersAttentionCheck(settings: Settings, expertId: string, serveIndex: number): boolean {
+  const fraction = settings.attentionFraction;
+  if (fraction <= 0) return false;
+  if (fraction >= 1) return true;
+  const digest = sha256Hex(`${settings.attentionKey}:${expertId}:${serveIndex}`);
+  return parseInt(digest.slice(0, 8), 16) / 2 ** 32 < fraction;
+}
+
 export class ServiceError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -41,6 +55,8 @@ export type ClaimResult =
   | { ok: false; statusCode: 204 | 423; detail: string };
 
 export interface ExpertInput {
+  /** Fixed id, used by the conformance replay; generated from the seed otherwise. */
+  id?: string;
   name: string;
   tags: string[];
   tier: Tier;
@@ -48,6 +64,8 @@ export interface ExpertInput {
 }
 
 export interface TaskInput {
+  /** Fixed id, used by the conformance replay; generated from the seed otherwise. */
+  id?: string;
   externalRef: string;
   prompt: string;
   responses: { model: string; text: string }[];
@@ -106,6 +124,8 @@ export interface DeliveryRow {
   weighted_score: number;
   rationale: string;
   time_spent_seconds: number;
+  /** Consensus rounds (4.0.0) are not modelled, so every row carries null here. */
+  consensus: null;
 }
 
 function eligibleTiers(tier: Tier): Tier[] {
@@ -113,13 +133,22 @@ function eligibleTiers(tier: Tier): Tier[] {
   return (Object.keys(TIER_RANK) as Tier[]).filter((t) => TIER_RANK[t] <= rank);
 }
 
-/** json.dumps(sort_keys=True, separators=(",", ":")) */
-export function stableStringify(value: unknown): string {
+/** Delivery fields the service stores as floats: Python prints 4.0 where JSON.stringify prints 4. */
+const FLOAT_FIELDS = new Set(["weighted_score", "spread"]);
+
+/** float.__repr__: shortest round-trip digits, always with a fractional part. */
+function pythonFloat(n: number): string {
+  return Number.isInteger(n) ? `${n}.0` : String(n);
+}
+
+/** json.dumps(sort_keys=True, separators=(",", ":")), byte for byte with the service's export. */
+export function stableStringify(value: unknown, asFloat = false): string {
+  if (typeof value === "number") return asFloat ? pythonFloat(value) : JSON.stringify(value);
   if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (Array.isArray(value)) return `[${value.map((v) => stableStringify(v, asFloat)).join(",")}]`;
   const obj = value as Record<string, unknown>;
   const keys = Object.keys(obj).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k], asFloat || FLOAT_FIELDS.has(k) || k === "scores")}`).join(",")}}`;
 }
 
 export class Platform {
@@ -162,9 +191,9 @@ export class Platform {
 
   // ----- seeding -----------------------------------------------------------
 
-  createRubric(name: string, version: number, criteria: Omit<Criterion, "position" | "scaleMin" | "scaleMax">[]): Rubric {
+  createRubric(name: string, version: number, criteria: Omit<Criterion, "position" | "scaleMin" | "scaleMax">[], id?: string): Rubric {
     this.rubric = {
-      id: this.ids.uuid(),
+      id: id ?? this.ids.uuid(),
       name,
       version,
       criteria: criteria.map((c, i) => ({ ...c, scaleMin: 1, scaleMax: 5, position: i })),
@@ -178,7 +207,7 @@ export class Platform {
 
   createExpert(input: ExpertInput): Expert {
     const expert: Expert = {
-      id: this.ids.uuid(),
+      id: input.id ?? this.ids.uuid(),
       name: input.name,
       tags: [...input.tags],
       tier: input.tier,
@@ -195,7 +224,7 @@ export class Platform {
     const rubricId = this.rubric.id;
     return inputs.map((input) => {
       const task: Task = {
-        id: this.ids.uuid(),
+        id: input.id ?? this.ids.uuid(),
         seq: ++this.taskSeq,
         externalRef: input.externalRef,
         prompt: input.prompt,
@@ -310,14 +339,8 @@ export class Platform {
     return task;
   }
 
-  attentionPeriod(): number {
-    const f = this.settings.attentionFraction;
-    return f ? Math.max(1, Math.round(1 / f)) : 0;
-  }
-
   prefersAttention(expert: Expert): boolean {
-    const period = this.attentionPeriod();
-    return period > 0 && (expert.servedCount + 1) % period === 0;
+    return prefersAttentionCheck(this.settings, expert.id, expert.servedCount + 1);
   }
 
   /** POST /tasks/next */
@@ -363,10 +386,6 @@ export class Platform {
 
   releaseLock(taskId: string): void {
     this.locked.delete(taskId);
-  }
-
-  isLocked(taskId: string): boolean {
-    return this.locked.has(taskId);
   }
 
   /** POST /tasks/{id}/release */
@@ -563,7 +582,12 @@ export class Platform {
     if (decision === "approve") payout = this.createPayout(grade, task, actor);
     if (!task.isAttentionCheck) {
       if (decision === "approve") task.status = "approved";
-      else if (task.status !== "approved") task.status = "rejected";
+      else if (task.requiredGrades === 1) {
+        // A rejected single-grader task goes back to the queue for a different expert.
+        task.status = "queued";
+        task.gradesReceived = Math.max(0, task.gradesReceived - 1);
+        this.record(actor, "task.requeued", "task", task.id, { rejected_grade_id: grade.id });
+      } else if (task.status !== "approved") task.status = "rejected";
     }
     this.record(actor, `grade.${decision}`, "grade", grade.id, { reason });
     return { grade, payout };
@@ -708,6 +732,7 @@ export class Platform {
         weighted_score: g.weightedScore,
         rationale: g.rationale,
         time_spent_seconds: g.timeSpentSeconds,
+        consensus: null,
       }));
   }
 
@@ -721,7 +746,7 @@ export class Platform {
     return { body: Platform.jsonl(rows), count: rows.length };
   }
 
-  /** GET /deliveries/export */
+  /** POST /deliveries */
   exportDelivery(actor = "admin"): Delivery {
     const { body, count } = this.buildJsonl();
     const checksum = sha256Hex(body);
@@ -730,7 +755,9 @@ export class Platform {
     const delivery: Delivery = {
       version,
       checksum,
-      location: `s3://${this.settings.deliveryBucket}/deliveries/${name}`,
+      // The object lives in this array, so the name is recorded without an s3:// scheme it
+      // does not have. The service writes the same name under s3://<bucket>/deliveries/.
+      location: `deliveries/${name}`,
       rowCount: count,
       sizeBytes: utf8Length(body),
     };

@@ -85,13 +85,21 @@ export interface WorldOptions {
   now: number;
 }
 
+/** build_world() names experts by their position, from expert-01 upwards. */
+export function expertName(index: number): string {
+  return `expert-${String(index + 1).padStart(2, "0")}`;
+}
+
+/** The experts flagged careless below, by name: the only ones that can fail an attention check. */
+export const CARELESS_EXPERTS = [3, 17].map(expertName);
+
 export function buildWorld(opts: WorldOptions): World {
   const rng = new Rng(opts.seed);
   const experts: SimExpert[] = [];
   for (let i = 0; i < opts.experts; i++) {
     const tags = rng.sample(TAGS, rng.choice([1, 2, 2, 3]));
     experts.push({
-      name: `expert-${String(i + 1).padStart(2, "0")}`,
+      name: expertName(i),
       tags,
       tier: rng.choice(TIERS),
       careless: false,
@@ -107,8 +115,7 @@ export function buildWorld(opts: WorldOptions): World {
     const e = experts[i];
     if (e) e[key] = true;
   };
-  flag(3, "careless");
-  flag(17, "careless");
+  for (const name of CARELESS_EXPERTS) flag(experts.findIndex((e) => e.name === name), "careless");
   flag(7, "abandonsFirst");
   flag(29, "abandonsFirst");
 

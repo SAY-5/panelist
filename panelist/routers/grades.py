@@ -19,19 +19,15 @@ def submit_grade(
     db: Session = Depends(get_db),
     expert: Expert = Depends(current_expert),
 ):
-    try:
-        grade = grading.submit(
-            db,
-            expert,
-            body.task_id,
-            body.scores,
-            body.rationale,
-            body.time_spent_seconds,
-            rubric_id=body.rubric_id,
-        )
-    except grading.GradingError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, e.detail) from e
+    grade = grading.submit(
+        db,
+        expert,
+        body.task_id,
+        body.scores,
+        body.rationale,
+        body.time_spent_seconds,
+        rubric_id=body.rubric_id,
+    )
     db.commit()
     return grade
 
@@ -75,18 +71,14 @@ def create_review(
     db: Session = Depends(get_db),
     principal: Principal = Depends(require_scopes("reviews:write")),
 ):
-    try:
-        rec, payout = grading.review(
-            db,
-            uuid.UUID(principal.key_id),
-            body.grade_id,
-            body.decision,
-            body.reason,
-            principal.actor,
-        )
-    except grading.GradingError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, e.detail) from e
+    rec, payout = grading.review(
+        db,
+        uuid.UUID(principal.key_id),
+        body.grade_id,
+        body.decision,
+        body.reason,
+        principal.actor,
+    )
     db.commit()
     out = schemas.ReviewOut.model_validate(rec)
     if payout is not None:

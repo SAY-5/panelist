@@ -2,7 +2,7 @@
 
 from itertools import combinations
 
-from sqlalchemy import Integer, cast, func, select
+from sqlalchemy import Integer, and_, cast, func, select
 from sqlalchemy.orm import Session, aliased
 
 from panelist.models import (
@@ -107,30 +107,36 @@ def task_agreement(db: Session, task_id) -> dict:
 
 
 def global_agreement(db: Session) -> dict:
-    """Mean pairwise absolute score difference across every multi-graded task."""
-    multi = db.scalars(
-        select(Grade.task_id)
-        .join(Task, Task.id == Grade.task_id)
+    """Mean pairwise absolute score difference across every multi-graded, non-golden task.
+
+    One query: every unordered pair of grades on the same task, joined on criterion, with
+    `gb.id < ga.id` so each pair is counted once.
+    """
+    ga, gb = aliased(Grade), aliased(Grade)
+    sa, sb = aliased(GradeScore), aliased(GradeScore)
+    diff = func.abs(sa.score - sb.score)
+    pairs, total_diff, exact, within_one, tasks = db.execute(
+        select(
+            func.count(),
+            func.coalesce(func.sum(diff), 0.0),
+            func.coalesce(func.sum(cast(sa.score == sb.score, Integer)), 0),
+            func.coalesce(func.sum(cast(diff <= 1, Integer)), 0),
+            func.count(func.distinct(ga.task_id)),
+        )
+        .select_from(ga)
+        .join(gb, and_(gb.task_id == ga.task_id, gb.id < ga.id))
+        .join(Task, Task.id == ga.task_id)
+        .join(sa, sa.grade_id == ga.id)
+        .join(sb, and_(sb.grade_id == gb.id, sb.criterion_id == sa.criterion_id))
         .where(Task.is_attention_check.is_(False))
-        .group_by(Grade.task_id)
-        .having(func.count(Grade.id) > 1)
-    ).all()
-    diffs: list[float] = []
-    exact = 0
-    for task_id in multi:
-        agg = task_agreement(db, task_id)
-        for crit in agg["criteria"].values():
-            values = list(crit["scores"].values())
-            for x, y in combinations(values, 2):
-                diffs.append(abs(x - y))
-                exact += x == y
-    n = len(diffs)
+    ).one()
+    n = int(pairs)
     return {
-        "multi_graded_tasks": len(multi),
+        "multi_graded_tasks": int(tasks),
         "compared_pairs": n,
-        "mean_abs_diff": (sum(diffs) / n) if n else None,
-        "exact_agreement": (exact / n) if n else None,
-        "within_one": (sum(1 for d in diffs if d <= 1) / n) if n else None,
+        "mean_abs_diff": (float(total_diff) / n) if n else None,
+        "exact_agreement": (int(exact) / n) if n else None,
+        "within_one": (int(within_one) / n) if n else None,
     }
 
 

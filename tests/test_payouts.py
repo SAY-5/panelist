@@ -5,7 +5,17 @@ import uuid
 from sqlalchemy import func, select
 
 from panelist.models import Payout, PayoutStatus
-from tests.helpers import claim, grade, h, make_expert, make_tasks, review, setup_rubric
+from tests.helpers import (
+    RATES,
+    RUBRIC,
+    claim,
+    grade,
+    h,
+    make_expert,
+    make_tasks,
+    review,
+    setup_rubric,
+)
 
 
 def _approved_grade(
@@ -64,7 +74,8 @@ def test_rejection_creates_no_payout(client, admin_key, reviewer_key, db):
     r = review(client, reviewer_key, g["id"], decision="reject", reason="rationale too thin")
     assert r["payout_id"] is None
     assert db.scalar(select(func.count(Payout.id))) == 0
-    assert client.get(f"/tasks/{tid}", headers=h(admin_key)).json()["status"] == "rejected"
+    task = client.get(f"/tasks/{tid}", headers=h(admin_key)).json()
+    assert task["status"] == "queued" and task["grades_received"] == 0  # back for another expert
 
 
 def test_period_close_totals_match_ledger(client, admin_key, reviewer_key, db):
@@ -125,3 +136,21 @@ def test_period_csv_export(client, admin_key, reviewer_key):
     assert sum(int(row["amount_cents"]) for row in rows) == period["total_cents"] == 800
     assert {row["period"] for row in rows} == {"w1"}
     assert all(row["paid_at"] for row in rows)
+
+
+def test_approval_without_a_rate_card_is_422(client, admin_key, reviewer_key, db):
+    rubric = client.post("/rubrics", json=RUBRIC, headers=h(admin_key)).json()["id"]
+    (tid,) = make_tasks(client, admin_key, rubric, [{}])
+    _, key = make_expert(client, admin_key, "A", ["python"])
+    claim(client, key)
+    g = grade(client, key, tid)
+    r = client.post(
+        "/reviews", json={"grade_id": g["id"], "decision": "approve"}, headers=h(reviewer_key)
+    )
+    assert r.status_code == 422 and "no rate configured for tier=junior" in r.json()["detail"]
+    # nothing from the failed review was kept: the grade is still unreviewed and unpaid
+    unreviewed = client.get("/grades", headers=h(reviewer_key)).json()
+    assert [x["id"] for x in unreviewed] == [g["id"]]
+    assert db.scalar(select(func.count(Payout.id))) == 0
+    assert client.put("/rate-cards", json=RATES, headers=h(admin_key)).status_code == 204
+    assert review(client, reviewer_key, g["id"])["payout_status"] == "pending"

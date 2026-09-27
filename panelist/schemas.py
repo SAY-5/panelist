@@ -26,7 +26,6 @@ class ExpertCreate(BaseModel):
     tags: list[str] = Field(min_length=1)
     tier: Tier = Tier.junior
     task_rate_cents: int | None = None
-    hourly_rate_cents: int | None = None
 
 
 class ExpertOut(ORMModel):
@@ -35,7 +34,6 @@ class ExpertOut(ORMModel):
     tags: list[str]
     tier: Tier
     task_rate_cents: int | None
-    hourly_rate_cents: int | None
     status: ExpertStatus
     served_count: int
     calibration_score: float | None = None
@@ -401,6 +399,18 @@ class DeliveryOut(ORMModel):
     row_count: int
     size_bytes: int
     created_at: datetime
+
+
+class DeliveryVerification(BaseModel):
+    version: int
+    location: str
+    stored_checksum: str
+    checksum: str
+    row_count: int
+    rows_read: int
+    size_bytes: int
+    bytes_read: int
+    match: bool
 
 
 # Operations

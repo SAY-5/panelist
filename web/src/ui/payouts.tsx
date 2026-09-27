@@ -41,7 +41,7 @@ export function PayoutsSection() {
         ? payout?.status === "withheld"
           ? `approved ${task.externalRef}: ${amount} withheld, ${expert.name} is paused`
           : `approved ${task.externalRef}: ${amount} pending for ${expert.name}`
-        : `rejected ${task.externalRef}: no payout is created and the task is marked rejected`,
+        : `rejected ${task.externalRef}: no payout is created and the task goes back to the queue for another expert`,
     );
     bump();
   }

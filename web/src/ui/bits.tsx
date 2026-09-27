@@ -8,16 +8,6 @@ export function Tag({ children, active = false }: { children: ReactNode; active?
   return <span className={`tag${active ? " tag-active" : ""}`}>{children}</span>;
 }
 
-export function Stat({ label, value, note }: { label: string; value: ReactNode; note?: string }) {
-  return (
-    <div className="stat">
-      <span className="stat-label">{label}</span>
-      <span className="stat-value">{value}</span>
-      {note ? <span className="stat-note">{note}</span> : null}
-    </div>
-  );
-}
-
 export function Card({ title, children, className = "", aside }: { title?: string; children: ReactNode; className?: string; aside?: ReactNode }) {
   return (
     <div className={`card ${className}`}>
@@ -45,8 +35,4 @@ export function Section({ id, num, title, lede, children }: { id: string; num: s
       {children}
     </section>
   );
-}
-
-export function Code({ children }: { children: ReactNode }) {
-  return <code className="code">{children}</code>;
 }

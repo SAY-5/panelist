@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from panelist import schemas
@@ -54,18 +54,14 @@ def decide(
     db: Session = Depends(get_db),
     principal: Principal = Depends(require_scopes("adjudications:write")),
 ):
-    try:
-        decision = consensus.resolve(
-            db,
-            task_id,
-            body.delivered_grade_id,
-            body.reason,
-            uuid.UUID(principal.key_id),
-            principal.actor,
-        )
-    except consensus.ConsensusError as e:
-        db.rollback()
-        raise HTTPException(e.status_code, e.detail) from e
+    decision = consensus.resolve(
+        db,
+        task_id,
+        body.delivered_grade_id,
+        body.reason,
+        uuid.UUID(principal.key_id),
+        principal.actor,
+    )
     result = schemas.AdjudicationResult(
         task_id=task_id,
         status=decision.round.status,

@@ -190,7 +190,7 @@ def test_expert_never_receives_task_already_graded(client, admin_key):
 
 
 def test_golden_tasks_are_never_served_as_filler(client, admin_key, settings):
-    settings.attention_fraction = 0.5
+    settings.attention_fraction = 1.0
     rubric = setup_rubric(client, admin_key)
     make_tasks(
         client,
@@ -209,14 +209,15 @@ def test_golden_tasks_are_never_served_as_filler(client, admin_key, settings):
     first = claim(client, key)
     assert (
         client.get(f"/tasks/{first['id']}", headers=h(admin_key)).json()["is_attention_check"]
-        is False
+        is True
     )
+    grade(client, key, first["id"], scores={"accuracy": 5, "clarity": 5, "safety": 5})
+    settings.attention_fraction = 0.0
     second = claim(client, key)
     assert (
         client.get(f"/tasks/{second['id']}", headers=h(admin_key)).json()["is_attention_check"]
-        is True
+        is False
     )
-    grade(client, key, first["id"])
     grade(client, key, second["id"])
-    # The regular queue is empty; two golden tasks remain but the third serve is not a check
+    # The regular queue is empty; two golden tasks remain but neither is served as filler.
     assert claim(client, key) is None

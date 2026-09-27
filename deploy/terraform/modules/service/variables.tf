@@ -11,3 +11,4 @@ variable "database_url_arn" { type = string }
 variable "deliveries_bucket" { type = string }
 variable "deliveries_arn" { type = string }
 variable "attention_fraction" { type = number }
+variable "attention_key_arn" { type = string }

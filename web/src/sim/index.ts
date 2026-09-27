@@ -1,8 +1,8 @@
 export * from "./types";
-export { Clock, EPOCH_MS, isoTime } from "./clock";
+export { Clock, EPOCH_MS } from "./clock";
 export { Rng, hashString } from "./prng";
 export { sha256Hex, utf8Length } from "./sha256";
-export { Platform, ServiceError, stableStringify } from "./platform";
+export { Platform, ServiceError, prefersAttentionCheck, stableStringify } from "./platform";
 export type { ClaimResult, Ledger, PeriodTotals, Agreement, CriterionMean, DeliveryRow, TaskInput, ExpertInput } from "./platform";
 export * from "./world";
 export { formatSummary, dollars } from "./summary";
@@ -10,4 +10,7 @@ export type { DemoSummary, Timing } from "./summary";
 export { createDemo, runDemo, seedPlatform, DEFAULT_DEMO, NOTABLE } from "./demo";
 export type { DemoEvent, DemoOptions, DemoRun, DemoStats } from "./demo";
 export { createWorkbench, trueScoresFor } from "./workbench";
+export { NOT_PORTED, PORTED_SERVICES, PORTED_SERVICE_VERSION } from "./port";
+export { compareRows, REFERENCE_RUN } from "./reference-run";
+export type { ComparisonRow, ReferenceRun } from "./reference-run";
 export type { Workbench } from "./workbench";

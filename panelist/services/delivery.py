@@ -15,8 +15,8 @@ from panelist.services import audit
 
 def _rows(db: Session):
     """One row per delivered grade: consensus tasks deliver only the grade that was chosen."""
-    grades = db.scalars(
-        select(Grade)
+    rows = db.execute(
+        select(Grade, Consensus)
         .join(Review, Review.grade_id == Grade.id)
         .join(Task, Task.id == Grade.task_id)
         .outerjoin(Consensus, Consensus.task_id == Task.id)
@@ -27,10 +27,8 @@ def _rows(db: Session):
         )
         .order_by(Task.seq, Grade.expert_id)
     ).all()
-    rounds = {c.task_id: c for c in db.scalars(select(Consensus)).all()}
-    for g in grades:
+    for g, round_ in rows:
         task = g.task
-        round_ = rounds.get(task.id)
         yield {
             "task_id": str(task.id),
             "external_ref": task.external_ref,
@@ -68,17 +66,20 @@ def build_jsonl(db: Session) -> tuple[bytes, int]:
     return body, len(lines)
 
 
+def _s3_client():
+    import boto3
+
+    settings = get_settings()
+    return boto3.client(
+        "s3", endpoint_url=settings.aws_endpoint_url or None, region_name=settings.aws_region
+    )
+
+
 def _store(body: bytes, version: int, checksum: str) -> str:
     settings = get_settings()
     name = f"panelist-grades-v{version}-{checksum[:12]}.jsonl"
     if settings.delivery_s3_bucket:
-        import boto3
-
-        client = boto3.client(
-            "s3",
-            endpoint_url=settings.aws_endpoint_url or None,
-            region_name=settings.aws_region,
-        )
+        client = _s3_client()
         key = f"deliveries/{name}"
         client.put_object(
             Bucket=settings.delivery_s3_bucket,
@@ -92,6 +93,33 @@ def _store(body: bytes, version: int, checksum: str) -> str:
     path = out_dir / name
     path.write_bytes(body)
     return os.fspath(path.resolve())
+
+
+def _read(location: str) -> bytes:
+    if location.startswith("s3://"):
+        bucket, key = location[len("s3://") :].split("/", 1)
+        return _s3_client().get_object(Bucket=bucket, Key=key)["Body"].read()
+    return Path(location).read_bytes()
+
+
+def verify(row: Delivery) -> dict:
+    """Read the stored object back; the sha256, row count and size must be what the row says."""
+    body = _read(row.location)
+    checksum = hashlib.sha256(body).hexdigest()
+    rows_read = body.count(b"\n")
+    return {
+        "version": row.version,
+        "location": row.location,
+        "stored_checksum": row.checksum,
+        "checksum": checksum,
+        "row_count": row.row_count,
+        "rows_read": rows_read,
+        "size_bytes": row.size_bytes,
+        "bytes_read": len(body),
+        "match": checksum == row.checksum
+        and rows_read == row.row_count
+        and len(body) == row.size_bytes,
+    }
 
 
 def export(db: Session, actor: str) -> Delivery:

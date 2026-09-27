@@ -1,12 +1,16 @@
 /** Self-check for the simulation port. Run with `npm run selfcheck`. */
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { Clock, EPOCH_MS } from "./sim/clock";
 import { runDemo, seedPlatform, DEFAULT_DEMO } from "./sim/demo";
-import { Platform, ServiceError } from "./sim/platform";
-import { sha256Hex } from "./sim/sha256";
+import { Platform, prefersAttentionCheck, ServiceError } from "./sim/platform";
+import { compareRows, REFERENCE_RUN } from "./sim/reference-run";
+import { sha256Hex, utf8Length } from "./sim/sha256";
 import { formatSummary } from "./sim/summary";
-import { DEMO_SETTINGS } from "./sim/types";
-import { buildWorld, CRITERIA } from "./sim/world";
+import { DEMO_SETTINGS, PayoutStatus, TaskStatus, Tier } from "./sim/types";
+import { buildWorld, CARELESS_EXPERTS, CRITERIA } from "./sim/world";
 
 let passed = 0;
 let failed = 0;
@@ -48,14 +52,14 @@ check(
   const sa = formatSummary(a.summary);
   const sb = formatSummary(b.summary);
   check("same seed gives identical summary", sa === sb);
-  check("summary block has the README shape", sa.startsWith("=".repeat(72) + "\nPANELIST DEMO SUMMARY\n") && sa.includes("tasks routed by tag (") && sa.includes("delivery v1:"));
+  check("summary block has the README shape", sa.startsWith("=".repeat(72) + "\nPANELIST DEMO SUMMARY\n") && sa.includes("claims by matched tag (") && sa.includes("delivery v1:"));
   const c = runDemo({ ...DEFAULT_DEMO, seed: 8 });
   check("different seed changes the summary", formatSummary(c.summary) !== sa);
   check("tag mismatch count is 0 in the full run", a.summary.mismatches === 0);
   check("every steal attempt was blocked", a.summary.doubleBlocked === a.summary.doubleAttempts && a.summary.doubleAttempts === 40);
   check("concurrent first claims land on unique rows", a.summary.uniqueFirstClaims === a.summary.concurrentFirstClaims);
   check("the two abandoned leases were reclaimed", a.summary.reclaims === 2, String(a.summary.reclaims));
-  check("careless experts are paused", a.summary.paused.join(",") === "expert-04,expert-18", a.summary.paused.join(","));
+  check("this page pauses both careless experts and nobody else", a.summary.paused.join(",") === CARELESS_EXPERTS.join(","), a.summary.paused.join(","));
   check("golden tasks stay queued at the end", a.summary.taskStatus.queued === a.summary.golden && a.summary.taskStatus.assigned === 0);
   check("payouts equal approved grades", a.summary.payoutsCreated === a.summary.approved);
   check("statement plus withheld equals every payout", a.summary.period.payoutCount + a.summary.ledger.countsByStatus.withheld === a.summary.payoutsCreated);
@@ -231,7 +235,7 @@ check(
   platform.review(g1.id, "reject", "spot check failed");
   platform.review(g2.id, "approve");
   check("rejected grades are not paid", platform.payouts.length === 1 && platform.payouts[0]?.gradeId === g2.id);
-  check("rejected non-golden task is marked rejected", r1.task.isAttentionCheck || r1.task.status === "rejected");
+  check("rejected single-grader task returns to the queue", r1.task.isAttentionCheck || (r1.task.status === "queued" && r1.task.gradesReceived === 0));
   let twice = false;
   try {
     platform.review(g2.id, "approve");
@@ -267,7 +271,249 @@ check(
   if (next.ok) platform.review(platform.submitGrade(e, next.task.id, truth({}), "fine", 100).id, "approve");
   const third = platform.exportDelivery();
   check("a new approval changes the checksum and row count", third.checksum !== first.checksum && third.rowCount === first.rowCount + 1);
-  check("jsonl rows use sorted keys and compact separators", platform.buildJsonl().body.split("\n")[0]?.startsWith('{"expert_id":') === true && !platform.buildJsonl().body.includes(": "));
+  check("jsonl rows use sorted keys and compact separators", platform.buildJsonl().body.split("\n")[0]?.startsWith('{"consensus":null,"expert_id":') === true && !platform.buildJsonl().body.includes(": "));
+}
+
+// ----- the page's comparison against the recorded service run ----------------
+{
+  const { summary } = runDemo(DEFAULT_DEMO);
+  const rows = compareRows(summary);
+  const broken = rows.filter((r) => r.kind === "held" && r.service !== r.here);
+  check(
+    `comparison card: every held row reads the same as the ${REFERENCE_RUN.commit} service run`,
+    broken.length === 0,
+    broken.map((r) => `${r.measure}: service ${r.service}, here ${r.here}`).join("; "),
+  );
+  check(
+    "comparison card: the rows that are expected to differ do differ",
+    rows.filter((r) => r.kind === "differs").every((r) => r.service !== r.here),
+    rows.filter((r) => r.kind === "differs" && r.service === r.here).map((r) => r.measure).join("; "),
+  );
+  check(
+    "comparison card: the pause count is not claimed to hold",
+    rows.some((r) => r.measure === "experts paused" && r.kind === "varies"),
+  );
+}
+
+// ----- conformance with the PostgreSQL service -------------------------------
+// tests/test_port_conformance.py runs this scenario through the service and writes
+// tests/fixtures/port_conformance.json; the port must reproduce every recorded outcome.
+interface ConformanceFixture {
+  settings: { lease_seconds: number; attention_fraction: number; attention_key: string; attention_window: number; attention_min_checks: number; attention_threshold: number; attention_tolerance: number };
+  attention_schedule: { expert: string; serves: boolean[] }[];
+  rubric: { id: string; name: string; version: number; criteria: { key: string; label: string; weight: number }[] };
+  rate_cards: { tier: Tier; task_type: string; rate_cents: number }[];
+  experts: { id: string; name: string; tags: string[]; tier: Tier }[];
+  tasks: {
+    id: string; external_ref: string; prompt: string; responses: { model: string; text: string }[]; required_tags: string[];
+    task_type: string; min_tier: Tier; priority: number; deadline_hours: number | null; required_grades: number;
+    is_attention_check: boolean; expected_scores: Record<string, number> | null;
+  }[];
+  steps: ConformanceStep[];
+  final: {
+    ledger: { totals_by_status: Record<string, number>; counts_by_status: Record<string, number> };
+    agreement: { multi_graded_tasks: number; compared_pairs: number; mean_abs_diff: number | null; exact_agreement: number | null; within_one: number | null };
+    task_status: Record<string, number>;
+    criterion_means: { key: string; mean: number; stddev: number | null; n: number }[];
+  };
+}
+type ConformanceStep =
+  | { action: "claim"; expert: string; expect: string | number }
+  | { action: "grade"; expert: string; task: string; scores: Record<string, number>; rationale: string; time_spent_seconds: number; expect: { weighted_score: number; attention: { passed: boolean; max_deviation: number } | null; expert_status: string; task_status: string } }
+  | { action: "review"; task: string; expert: string; decision: "approve" | "reject"; reason: string | null; expect: { task_status: string; payout_cents: number | null; payout_status: string | null } }
+  | { action: "close_period"; label: string; expect: { payout_count: number; total_cents: number; expert_count: number } }
+  | { action: "export"; expect: { row_count: number; size_bytes: number; sha256: string; approved_grade_count: number } };
+
+{
+  const fx = JSON.parse(readFileSync(resolve(process.cwd(), "..", "tests", "fixtures", "port_conformance.json"), "utf8")) as ConformanceFixture;
+  const clock = new Clock(EPOCH_MS);
+  const st = fx.settings;
+  const platform = new Platform(
+    {
+      leaseSeconds: st.lease_seconds,
+      attentionFraction: st.attention_fraction,
+      attentionKey: st.attention_key,
+      attentionWindow: st.attention_window,
+      attentionMinChecks: st.attention_min_checks,
+      attentionThreshold: st.attention_threshold,
+      attentionTolerance: st.attention_tolerance,
+      deliveryBucket: "conformance",
+    },
+    clock,
+    1,
+  );
+  platform.createRubric(fx.rubric.name, fx.rubric.version, fx.rubric.criteria, fx.rubric.id);
+  platform.putRateCards(fx.rate_cards.map((c) => ({ tier: c.tier, taskType: c.task_type, rateCents: c.rate_cents })));
+  for (const e of fx.experts) platform.createExpert({ id: e.id, name: e.name, tags: e.tags, tier: e.tier });
+  platform.createTasks(
+    fx.tasks.map((t) => ({
+      id: t.id,
+      externalRef: t.external_ref,
+      prompt: t.prompt,
+      responses: t.responses,
+      requiredTags: t.required_tags,
+      taskType: t.task_type,
+      minTier: t.min_tier,
+      priority: t.priority,
+      deadline: t.deadline_hours === null ? null : clock.now() + t.deadline_hours * 3_600_000,
+      requiredGrades: t.required_grades,
+      isAttentionCheck: t.is_attention_check,
+      expectedScores: t.expected_scores,
+    })),
+  );
+  const expertNamed = (name: string) => {
+    const e = platform.experts.find((x) => x.name === name);
+    if (!e) throw new Error(`no expert ${name}`);
+    return e;
+  };
+  const taskRef = (ref: string) => {
+    const t = platform.tasks.find((x) => x.externalRef === ref);
+    if (!t) throw new Error(`no task ${ref}`);
+    return t;
+  };
+  const near = (a: number | null, b: number | null): boolean => (a === null || b === null ? a === b : Math.abs(a - b) < 1e-9);
+  for (const row of fx.attention_schedule) {
+    const expert = platform.experts.find((e) => e.name === row.expert);
+    if (!expert) throw new Error(`no expert ${row.expert}`);
+    const mine = row.serves.map((_, i) => prefersAttentionCheck(platform.settings, expert.id, i + 1));
+    check(
+      `conformance: attention schedule for ${row.expert} matches the service`,
+      mine.every((v, i) => v === row.serves[i]),
+      mine.map((v) => (v ? "G" : ".")).join(""),
+    );
+  }
+  fx.steps.forEach((step, i) => {
+    clock.advance(1000);
+    const label = `conformance ${i + 1} ${step.action}`;
+    switch (step.action) {
+      case "claim": {
+        const r = platform.claimNext(expertNamed(step.expert));
+        const got = r.ok ? r.task.externalRef : r.statusCode;
+        check(`${label}: ${step.expert} gets ${String(step.expect)}`, got === step.expect, String(got));
+        break;
+      }
+      case "grade": {
+        const expert = expertNamed(step.expert);
+        const task = taskRef(step.task);
+        const g = platform.submitGrade(expert, task.id, step.scores, step.rationale, step.time_spent_seconds);
+        const att = platform.attentionResults.find((a) => a.gradeId === g.id) ?? null;
+        const attentionOk = att === null ? step.expect.attention === null : step.expect.attention !== null && att.passed === step.expect.attention.passed && near(att.maxDeviation, step.expect.attention.max_deviation);
+        const ok = near(g.weightedScore, step.expect.weighted_score) && expert.status === step.expect.expert_status && task.status === step.expect.task_status && attentionOk;
+        check(`${label}: ${step.expert} on ${step.task}`, ok, `${g.weightedScore} ${expert.status} ${task.status} ${JSON.stringify(att)}`);
+        break;
+      }
+      case "review": {
+        const task = taskRef(step.task);
+        const expert = expertNamed(step.expert);
+        const grade = platform.grades.find((g) => g.taskId === task.id && g.expertId === expert.id);
+        if (!grade) throw new Error(`no grade on ${step.task} by ${step.expert}`);
+        const { payout } = platform.review(grade.id, step.decision, step.reason);
+        const ok = task.status === step.expect.task_status && (payout?.amountCents ?? null) === step.expect.payout_cents && (payout?.status ?? null) === step.expect.payout_status;
+        check(`${label}: ${step.decision} ${step.task} by ${step.expert}`, ok, `${task.status} ${String(payout?.amountCents)} ${String(payout?.status)}`);
+        break;
+      }
+      case "close_period": {
+        const totals = platform.closePeriod(step.label);
+        const ok = totals.payoutCount === step.expect.payout_count && totals.totalCents === step.expect.total_cents && totals.expertCount === step.expect.expert_count;
+        check(`${label}: ${step.label}`, ok, JSON.stringify(totals));
+        break;
+      }
+      case "export": {
+        const { body, count } = platform.buildJsonl();
+        const sha = sha256Hex(body);
+        // The port implements the 1.0.0 rule: every approved grade. The service filters a
+        // multi-graded task down to the grade its consensus round picked, so the two agree on
+        // bytes only when no consensus round dropped a grade.
+        const sameRule = step.expect.approved_grade_count === step.expect.row_count;
+        const ok = count === step.expect.approved_grade_count && (!sameRule || (utf8Length(body) === step.expect.size_bytes && sha === step.expect.sha256));
+        check(
+          sameRule
+            ? `${label}: ${step.expect.row_count} rows, sha256 ${step.expect.sha256.slice(0, 12)}`
+            : `${label}: ${step.expect.approved_grade_count} rows under the 1.0.0 rule where the service delivers ${step.expect.row_count}`,
+          ok,
+          `${count} rows, ${utf8Length(body)} bytes, ${sha.slice(0, 12)}`,
+        );
+        break;
+      }
+    }
+  });
+  const ledger = platform.ledger();
+  const statuses: PayoutStatus[] = ["pending", "withheld", "paid"];
+  check(
+    "conformance: ledger totals and counts match the service",
+    statuses.every((s) => ledger.totalsByStatus[s] === fx.final.ledger.totals_by_status[s] && ledger.countsByStatus[s] === fx.final.ledger.counts_by_status[s]),
+    JSON.stringify(ledger.totalsByStatus),
+  );
+  const agreement = platform.globalAgreement();
+  const fa = fx.final.agreement;
+  check(
+    "conformance: agreement statistics match the service",
+    agreement.multiGradedTasks === fa.multi_graded_tasks && agreement.comparedPairs === fa.compared_pairs && near(agreement.meanAbsDiff, fa.mean_abs_diff) && near(agreement.exactAgreement, fa.exact_agreement) && near(agreement.withinOne, fa.within_one),
+    JSON.stringify(agreement),
+  );
+  const status = platform.queueSummary();
+  check(
+    "conformance: task status counts match the service",
+    (Object.keys(status) as TaskStatus[]).every((k) => status[k] === fx.final.task_status[k]) && fx.final.task_status["adjudication"] === 0,
+    JSON.stringify(status),
+  );
+  const means = platform.criterionMeans();
+  check(
+    "conformance: criterion means match the service",
+    means.length === fx.final.criterion_means.length &&
+      means.every((m, i) => {
+        const f = fx.final.criterion_means[i];
+        if (f === undefined || f.key !== m.key || f.n !== m.n || !near(m.mean, f.mean)) return false;
+        return m.stddev === null || f.stddev === null ? m.stddev === f.stddev : Math.abs(m.stddev - f.stddev) < 1e-6;
+      }),
+    JSON.stringify(means),
+  );
+}
+
+// ----- stylesheet: contrast and size floors --------------------------------
+{
+  const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+  const token = (name: string): string => {
+    const m = css.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`));
+    if (!m?.[1]) throw new Error(`token --${name} missing`);
+    return m[1];
+  };
+  const luminance = (hex: string): number => {
+    const channel = (i: number) => {
+      const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  };
+  const contrast = (fg: string, bg: string): number => {
+    const [a, b] = [luminance(fg), luminance(bg)];
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  // WCAG 2.1 AA for text below 18pt regular: 4.5:1. Every ink token on every surface.
+  for (const fg of ["ink", "ink-2", "ink-3"]) {
+    for (const bg of ["paper", "paper-2", "panel"]) {
+      const r = contrast(token(fg), token(bg));
+      check(`--${fg} on --${bg} reaches 4.5:1`, r >= 4.5, r.toFixed(2));
+    }
+  }
+  check("--accent-ink on --accent-soft reaches 4.5:1", contrast(token("accent-ink"), token("accent-soft")) >= 4.5, contrast(token("accent-ink"), token("accent-soft")).toFixed(2));
+  check("--accent on --paper reaches 4.5:1", contrast(token("accent"), token("paper")) >= 4.5, contrast(token("accent"), token("paper")).toFixed(2));
+  check("--accent on --panel reaches 4.5:1", contrast(token("accent"), token("panel")) >= 4.5, contrast(token("accent"), token("panel")).toFixed(2));
+  const sizes = [...css.matchAll(/font-size:\s*([\d.]+)px/g)].map((m) => Number(m[1]));
+  check("no fixed font size below 10px", sizes.length > 0 && Math.min(...sizes) >= 10, String(Math.min(...sizes)));
+  const blocks = css.split("}").map((b) => b.split("{")).filter((p) => p.length === 2) as [string, string][];
+  const sizeOf = (selector: string): number | null => {
+    for (const [sel, body] of blocks) {
+      if (sel.trim() !== selector) continue;
+      const m = body.match(/font-size:\s*([\d.]+)px/);
+      if (m?.[1]) return Number(m[1]);
+    }
+    return null;
+  };
+  for (const selector of [".counter-label", "th", "caption", ".stamp", ".tag", ".log-kind", ".criterion-scale"]) {
+    const size = sizeOf(selector);
+    check(`${selector} tracked label is at least 11px`, size !== null && size >= 11, String(size));
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed, ${passed + failed} assertions`);

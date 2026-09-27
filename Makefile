@@ -1,10 +1,10 @@
-.PHONY: setup lint test migrate demo demo-down tf-validate tf-plan run
+.PHONY: setup lint test migrate demo demo-down demo-check tf-validate tf-plan run web-check
 
 COMPOSE := docker compose -f deploy/docker-compose.yml
 DEMO_DB := postgresql+psycopg://panelist:panelist@localhost:5439/panelist
 
 setup:
-	uv sync --extra dev
+	uv sync --locked --extra dev
 
 lint:
 	uv run ruff check .
@@ -28,8 +28,14 @@ demo:
 demo-down:
 	$(COMPOSE) down -v
 
+demo-check:
+	uv run python -m sim.demo --check docs/demo-2026-09-26.json
+
 tf-validate:
 	cd deploy/terraform && terraform fmt -check -recursive && terraform init -backend=false -input=false >/dev/null && terraform validate
 
 tf-plan:
 	cd deploy/terraform && terraform init -input=false && terraform plan -input=false -var-file=environments/dev.tfvars
+
+web-check:
+	cd web && npm ci && npm run typecheck && npm run selfcheck && npm run build && npm run size

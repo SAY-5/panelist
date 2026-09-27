@@ -1,0 +1,163 @@
+{
+  "config": {
+    "attention_fraction": 0.2,
+    "attention_min_checks": 2,
+    "attention_threshold": 0.7,
+    "attention_window": 10,
+    "lease_seconds": 3
+  },
+  "environment": {
+    "commit": "67dae0092424bf06d734b874e2aa6305f8f7cf5f",
+    "cpu_count": 10,
+    "load_average_end": [
+      12.22,
+      12.55,
+      10.78
+    ],
+    "load_average_start": [
+      15.15,
+      12.99,
+      10.83
+    ],
+    "machine": "Darwin 25.0.0 arm64",
+    "panelist_version": "5.1.0",
+    "postgres": "16.14",
+    "python": "3.12.13"
+  },
+  "run": {
+    "experts": 40,
+    "golden": 50,
+    "golden_share": 0.1,
+    "seed": 7,
+    "started_at": "2026-09-27T05:39:20Z",
+    "tasks": 500
+  },
+  "summary": {
+    "adjudications": 3,
+    "admin_sweep_reclaimed": 0,
+    "agreement": {
+      "compared_pairs": 328,
+      "exact_agreement": 0.5213414634146342,
+      "mean_abs_diff": 0.5670731707317073,
+      "multi_graded_tasks": 82,
+      "within_one": 0.9237804878048781
+    },
+    "approved": 656,
+    "attention_checks_failed": 4,
+    "attention_checks_served": 132,
+    "claim_latency": {
+      "claims": 780,
+      "note": "client side, 40 threads, one in-process worker",
+      "p50_ms": 301.2,
+      "p95_ms": 419.6
+    },
+    "claims": 664,
+    "claims_by_matched_tag": {
+      "biology": 94,
+      "finance": 80,
+      "law": 83,
+      "math": 106,
+      "medicine": 73,
+      "python": 78,
+      "security": 70,
+      "writing": 96
+    },
+    "concurrent_first_claims": 40,
+    "criterion_means": {
+      "accuracy": 3.6686746987951806,
+      "clarity": 3.7243975903614457,
+      "completeness": 3.6536144578313254,
+      "safety": 3.6069277108433737
+    },
+    "delivery": {
+      "location": "s3://panelist-deliveries/deliveries/panelist-grades-v1-847a92f671e2.jsonl",
+      "row_count": 450,
+      "sha256": "847a92f671e2778f7ee5c4c15044b3d5aaa1018c4231bb3f0a85cbea6e15f5b3",
+      "size_bytes": 317807,
+      "version": 1
+    },
+    "double_attempts": 40,
+    "double_blocked": 40,
+    "experts_by_tier": {
+      "junior": 2,
+      "lead": 38,
+      "senior": 0
+    },
+    "experts_paused": [
+      "expert-04",
+      "expert-18"
+    ],
+    "expired_leases_reclaimed": 2,
+    "grades_stored": 664,
+    "grading_wall_seconds": 18.428,
+    "ledger": {
+      "paid": 520050,
+      "pending": 0,
+      "withheld": 2850
+    },
+    "ops_overview": {
+      "adjudication_backlog": 0,
+      "expired_leases": 0,
+      "paused_experts": [
+        "expert-04",
+        "expert-18"
+      ],
+      "period": {
+        "closed_at": "2026-09-27T05:40:02.327587Z",
+        "last_label": "2026-09-A",
+        "unbilled_cents": 0,
+        "unbilled_payouts": 0,
+        "withheld_cents": 2850
+      },
+      "queued_by_tag": {
+        "biology": 12,
+        "finance": 4,
+        "law": 8,
+        "math": 9,
+        "medicine": 12,
+        "python": 5,
+        "security": 8,
+        "writing": 12
+      },
+      "tasks_by_status": {
+        "adjudication": 0,
+        "approved": 450,
+        "assigned": 0,
+        "queued": 50,
+        "rejected": 0,
+        "submitted": 0
+      }
+    },
+    "outvoted": 3,
+    "payouts_created": 662,
+    "regraded_after_rejection": 1,
+    "rejected": 2,
+    "statement": {
+      "expert_count": 38,
+      "label": "2026-09-A",
+      "payout_count": 653,
+      "total_cents": 520050
+    },
+    "tag_mismatches": 0,
+    "task_status": {
+      "adjudication": 0,
+      "approved": 450,
+      "assigned": 0,
+      "queued": 50,
+      "rejected": 0,
+      "submitted": 0
+    },
+    "tick": {
+      "experts_scored": 40,
+      "reclaimed": 0,
+      "reminders": [
+        "1 experts have fewer than 5 calibration signals"
+      ],
+      "tier_changes": 0
+    },
+    "tier_moves": 47,
+    "tier_moves_up": 47,
+    "unique_first_claims": 40
+  },
+  "world_fingerprint": "bb3543e1849de29206a947e049d66b84c8f6662b845cef7188252863760d767a"
+}

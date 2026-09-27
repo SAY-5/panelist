@@ -19,13 +19,11 @@ from panelist.models import (
     TaskStatus,
 )
 from panelist.services import audit, calibration, payouts
+from panelist.services.errors import ServiceError
 
 
-class ConsensusError(Exception):
-    def __init__(self, status_code: int, detail: str):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.detail = detail
+class ConsensusError(ServiceError):
+    pass
 
 
 @dataclass
@@ -43,6 +41,18 @@ def grades_for(db: Session, task_id) -> list[Grade]:
     )
 
 
+def _unrejected(db: Session, task_id) -> list[Grade]:
+    """Grades still in play: a grade a reviewer rejected never joins a consensus round."""
+    rejected = set(
+        db.scalars(
+            select(Review.grade_id)
+            .join(Grade, Grade.id == Review.grade_id)
+            .where(Grade.task_id == task_id, Review.decision == ReviewDecision.reject)
+        ).all()
+    )
+    return [g for g in grades_for(db, task_id) if g.id not in rejected]
+
+
 def _closest_to_mean(grades: list[Grade]) -> Grade:
     mean = sum(g.weighted_score for g in grades) / len(grades)
     return min(grades, key=lambda g: (abs(g.weighted_score - mean), g.submitted_at, g.id))
@@ -51,7 +61,7 @@ def _closest_to_mean(grades: list[Grade]) -> Grade:
 def evaluate(db: Session, task: Task) -> Consensus | None:
     """Score the completed grades on a task: agree within tolerance, or open an adjudication."""
     settings = get_settings()
-    grades = grades_for(db, task.id)
+    grades = _unrejected(db, task.id)
     if len(grades) < 2:
         return None
     scores = [g.weighted_score for g in grades]
@@ -78,6 +88,41 @@ def evaluate(db: Session, task: Task) -> Consensus | None:
         "task",
         task.id,
         {"spread": spread, "grades": len(grades)},
+    )
+    return row
+
+
+def redeliver(db: Session, task: Task, rejected: Grade, actor: str) -> Consensus | None:
+    """A reviewer rejected the grade an agreed round had selected: pick the delivery again.
+
+    Approved grades are preferred, then unreviewed ones; with nothing left the round
+    delivers no grade at all rather than a rejected one.
+    """
+    row = db.scalar(select(Consensus).where(Consensus.task_id == task.id).with_for_update())
+    if row is None or row.status != ConsensusStatus.agreed or row.delivered_grade_id != rejected.id:
+        return None
+    grades = grades_for(db, task.id)
+    decisions = dict(
+        db.execute(
+            select(Review.grade_id, Review.decision).where(
+                Review.grade_id.in_([g.id for g in grades])
+            )
+        ).all()
+    )
+    pool = [g for g in grades if decisions.get(g.id) != ReviewDecision.reject]
+    approved = [g for g in pool if decisions.get(g.id) == ReviewDecision.approve]
+    candidates = approved or pool
+    row.delivered_grade_id = _closest_to_mean(candidates).id if candidates else None
+    audit.record(
+        db,
+        actor,
+        "consensus.redelivered",
+        "task",
+        task.id,
+        {
+            "rejected": str(rejected.id),
+            "delivered": None if row.delivered_grade_id is None else str(row.delivered_grade_id),
+        },
     )
     return row
 

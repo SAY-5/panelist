@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     # Attention checks
     attention_fraction: float = 0.1
+    attention_key: str = "panelist"
     attention_window: int = 10
     attention_min_checks: int = 3
     attention_threshold: float = 0.7
