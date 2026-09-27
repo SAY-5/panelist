@@ -114,10 +114,11 @@ export function compareRows(s: DemoSummary): ComparisonRow[] {
       "experts paused",
       String(r.pausedExperts.length),
       String(s.paused.length),
-      "the guard needs two of an expert's checks before it can act, and the claim race decides how" +
-        " many checks each careless expert is served: 2 paused in 14 of 15 service runs at this" +
-        " configuration and 1 in the fifteenth, where the second careless expert was served one" +
-        " check. This page keeps its own schedule and pauses both every time",
+      `the guard cannot act until it holds ${s.settings.attentionMinChecks} of an expert's checks,` +
+        " and the claim race decides how many each careless expert is served: 2 paused in 14 of 15" +
+        " service runs at this configuration and 1 in the fifteenth, where the other careless" +
+        " expert had been served a single check. This page runs a fixed schedule and pauses both" +
+        " every time",
     ),
     differs("claims", String(r.claims), String(s.claims), "different generator, different race"),
     differs("grades stored", String(r.gradesStored), String(s.gradesStored), "one grade per claim in both"),
