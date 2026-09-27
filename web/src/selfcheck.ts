@@ -10,7 +10,7 @@ import { compareRows, REFERENCE_RUN } from "./sim/reference-run";
 import { sha256Hex, utf8Length } from "./sim/sha256";
 import { formatSummary } from "./sim/summary";
 import { DEMO_SETTINGS, PayoutStatus, TaskStatus, Tier } from "./sim/types";
-import { buildWorld, CRITERIA } from "./sim/world";
+import { buildWorld, CARELESS_EXPERTS, CRITERIA } from "./sim/world";
 
 let passed = 0;
 let failed = 0;
@@ -59,7 +59,7 @@ check(
   check("every steal attempt was blocked", a.summary.doubleBlocked === a.summary.doubleAttempts && a.summary.doubleAttempts === 40);
   check("concurrent first claims land on unique rows", a.summary.uniqueFirstClaims === a.summary.concurrentFirstClaims);
   check("the two abandoned leases were reclaimed", a.summary.reclaims === 2, String(a.summary.reclaims));
-  check("careless experts are paused", a.summary.paused.join(",") === "expert-04,expert-18", a.summary.paused.join(","));
+  check("this page pauses both careless experts and nobody else", a.summary.paused.join(",") === CARELESS_EXPERTS.join(","), a.summary.paused.join(","));
   check("golden tasks stay queued at the end", a.summary.taskStatus.queued === a.summary.golden && a.summary.taskStatus.assigned === 0);
   check("payouts equal approved grades", a.summary.payoutsCreated === a.summary.approved);
   check("statement plus withheld equals every payout", a.summary.period.payoutCount + a.summary.ledger.countsByStatus.withheld === a.summary.payoutsCreated);
@@ -278,16 +278,20 @@ check(
 {
   const { summary } = runDemo(DEFAULT_DEMO);
   const rows = compareRows(summary);
-  const broken = rows.filter((r) => r.invariant && r.service !== r.here);
+  const broken = rows.filter((r) => r.kind === "held" && r.service !== r.here);
   check(
-    `comparison card: every invariant reads the same as the ${REFERENCE_RUN.commit} service run`,
+    `comparison card: every held row reads the same as the ${REFERENCE_RUN.commit} service run`,
     broken.length === 0,
     broken.map((r) => `${r.measure}: service ${r.service}, here ${r.here}`).join("; "),
   );
   check(
     "comparison card: the rows that are expected to differ do differ",
-    rows.filter((r) => !r.invariant).every((r) => r.service !== r.here),
-    rows.filter((r) => !r.invariant && r.service === r.here).map((r) => r.measure).join("; "),
+    rows.filter((r) => r.kind === "differs").every((r) => r.service !== r.here),
+    rows.filter((r) => r.kind === "differs" && r.service === r.here).map((r) => r.measure).join("; "),
+  );
+  check(
+    "comparison card: the pause count is not claimed to hold",
+    rows.some((r) => r.measure === "experts paused" && r.kind === "varies"),
   );
 }
 

@@ -14,8 +14,9 @@ export function CompareCard({ summary }: { summary: DemoSummary | null }) {
         <div className="scroll-x">
           <table>
             <caption>
-              Service at commit {REFERENCE_RUN.commit}, {REFERENCE_RUN.ranAt.slice(0, 10)}, against this
-              simulation
+              One service run, commit {REFERENCE_RUN.commit}, {REFERENCE_RUN.ranAt.slice(0, 10)}, against
+              this simulation. The service races 40 threads for rows, so its column is that run and
+              not a fixed result
             </caption>
             <thead>
               <tr>
@@ -30,7 +31,11 @@ export function CompareCard({ summary }: { summary: DemoSummary | null }) {
                   <th scope="row">
                     {row.measure}
                     <span className="row-why">
-                      {row.invariant ? "holds in both" : "differs"}
+                      {row.kind === "held"
+                        ? "holds in both"
+                        : row.kind === "differs"
+                          ? "differs"
+                          : "varies between service runs"}
                       <span className="row-why-text">: {row.why}</span>
                     </span>
                   </th>
