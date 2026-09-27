@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createDemo, DEFAULT_DEMO, DemoEvent, DemoRun, DemoSummary, formatSummary, NOTABLE, PORTED_SERVICE_VERSION } from "../sim";
 import { Card, Section, Stamp } from "./bits";
+import { CompareCard } from "./compare";
 import { money, pct, prefersReducedMotion } from "./format";
 import { RUN } from "./params";
 
@@ -241,6 +242,10 @@ export function FullRunSection() {
             {announced}
           </p>
         </Card>
+      </div>
+
+      <div className="section-gap">
+        <CompareCard summary={summary} />
       </div>
 
       <div className="section-gap">

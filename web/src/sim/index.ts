@@ -11,4 +11,6 @@ export { createDemo, runDemo, seedPlatform, DEFAULT_DEMO, NOTABLE } from "./demo
 export type { DemoEvent, DemoOptions, DemoRun, DemoStats } from "./demo";
 export { createWorkbench, trueScoresFor } from "./workbench";
 export { NOT_PORTED, PORTED_SERVICES, PORTED_SERVICE_VERSION } from "./port";
+export { compareRows, REFERENCE_RUN } from "./reference-run";
+export type { ComparisonRow, ReferenceRun } from "./reference-run";
 export type { Workbench } from "./workbench";

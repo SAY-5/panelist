@@ -228,6 +228,26 @@ a:hover {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
 }
 
+.row-why {
+  display: block;
+  margin-top: 3px;
+  max-width: 60ch;
+  font-size: 11.5px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+/* On a phone the reason would push both number columns off screen, so the verdict stays
+   and the sentence behind it is left to the wider layout. */
+@media (max-width: 760px) {
+  .row-why-text {
+    display: none;
+  }
+}
+
 .hero-note {
   margin-top: 14px;
   max-width: 68ch;

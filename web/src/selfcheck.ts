@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { Clock, EPOCH_MS } from "./sim/clock";
 import { runDemo, seedPlatform, DEFAULT_DEMO } from "./sim/demo";
 import { Platform, prefersAttentionCheck, ServiceError } from "./sim/platform";
+import { compareRows, REFERENCE_RUN } from "./sim/reference-run";
 import { sha256Hex, utf8Length } from "./sim/sha256";
 import { formatSummary } from "./sim/summary";
 import { DEMO_SETTINGS, PayoutStatus, TaskStatus, Tier } from "./sim/types";
@@ -271,6 +272,23 @@ check(
   const third = platform.exportDelivery();
   check("a new approval changes the checksum and row count", third.checksum !== first.checksum && third.rowCount === first.rowCount + 1);
   check("jsonl rows use sorted keys and compact separators", platform.buildJsonl().body.split("\n")[0]?.startsWith('{"consensus":null,"expert_id":') === true && !platform.buildJsonl().body.includes(": "));
+}
+
+// ----- the page's comparison against the recorded service run ----------------
+{
+  const { summary } = runDemo(DEFAULT_DEMO);
+  const rows = compareRows(summary);
+  const broken = rows.filter((r) => r.invariant && r.service !== r.here);
+  check(
+    `comparison card: every invariant reads the same as the ${REFERENCE_RUN.commit} service run`,
+    broken.length === 0,
+    broken.map((r) => `${r.measure}: service ${r.service}, here ${r.here}`).join("; "),
+  );
+  check(
+    "comparison card: the rows that are expected to differ do differ",
+    rows.filter((r) => !r.invariant).every((r) => r.service !== r.here),
+    rows.filter((r) => !r.invariant && r.service === r.here).map((r) => r.measure).join("; "),
+  );
 }
 
 // ----- conformance with the PostgreSQL service -------------------------------
