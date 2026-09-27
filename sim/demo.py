@@ -107,7 +107,8 @@ def check_artifact(path: str) -> int:
     print("fixed by the seed: expert tags and tiers, the careless and abandoning experts, task")
     print("tags, types, priorities, the golden set and reference scores, each expert's noise")
     print("varies per run: which expert takes which task, and with it the per-tag claim counts,")
-    print("failed checks, agreement, checksum and timings")
+    print("checks served and failed, how many of the two careless experts hold enough checks for")
+    print("the guard to pause them, agreement, checksum and timings")
     return 0 if same else 1
 
 
