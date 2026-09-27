@@ -64,8 +64,14 @@ A grade is stored twice on purpose. `grades.scores_snapshot` is a JSONB copy of 
 
 ## Observability
 
-`/metrics` exposes queue depth by tag, claim latency histogram, claim outcomes, blocked double assignments, attention check results and global pass rate, experts paused, grades, payouts created by status, and the payout ledger balance by status. Gauges are refreshed on scrape from the database. Logs are JSON via structlog.
+`/metrics` exposes counters for claim outcomes, blocked double assignments, attention check results, grades, consensus rounds by outcome, automatic tier moves by direction, experts paused, and payouts and payout amounts by status; a histogram of assignment latency; and gauges for queue depth by tag, the global attention pass rate, the payout ledger balance by status, the adjudication backlog, the number of paused experts and the expert count per tier. The gauges are refreshed from the database on every scrape, which is why a tag whose queue has drained reads 0 rather than disappearing. Logs are JSON via structlog.
 
 ## Deployment
 
+ECS tasks run in the public subnets with `assign_public_ip = true`, which is how they reach ECR and Secrets Manager without a NAT gateway; the security group admits only the ALB. RDS stays in the private subnets. A production account would move the tasks into the private subnets behind a NAT gateway or VPC endpoints and pay for one of the two.
+
 The Terraform root wires four modules: `network` (VPC, two public and two private subnets, IGW), `storage` (versioned, encrypted, private S3 bucket), `database` (RDS PostgreSQL 16 in private subnets, security group admitting only the service, Secrets Manager secret with the full `DATABASE_URL`) and `service` (ECS cluster with Container Insights, task definition with an `alembic upgrade head` init container and the API container reading `DATABASE_URL` from Secrets Manager, task role limited to the deliveries bucket, ALB with `/healthz` target group, CloudWatch log group).
+
+## Browser port
+
+`web/` is a TypeScript port of the 1.0.0 service layer: `src/sim/platform.ts` mirrors `panelist/services/{routing,grading,attention,payouts,analytics,delivery}.py`, `src/sim/world.ts` and `src/sim/demo.ts` mirror `sim/world.py` and `sim/demo.py`, and an sfc32 PRNG and a virtual clock stand in for PostgreSQL and the wall clock. Rubric versions, calibration and tiers, consensus and adjudication, and the ops overview are not ported, so a multi-graded task delivers every approved grade there and the summary block stops at the delivery line. `tests/test_port_conformance.py` runs one fixed scenario through the PostgreSQL service and records every claim, grade, attention verdict, payout, statement total, ledger figure, agreement statistic, keyed attention decision and JSONL checksum in `tests/fixtures/port_conformance.json`; `npm run selfcheck` replays the same scenario through the port and asserts each value, so the two implementations cannot drift silently. The page states that its numbers are simulated rather than measured, and the CI `web` job runs the typecheck, the selfcheck, the production bundle and a gzip size budget.

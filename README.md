@@ -21,16 +21,22 @@ Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PostgreSQL 16, Prometheus, Terrafor
   |  /reviews     ---> approve/reject, payout at rate card    |
   |  /payouts     ---> ledger, period close, CSV statement    |
   |  /analytics   ---> criterion means, inter-rater agreement |
-  |  /deliveries  ---> versioned JSONL, sha256, S3 or disk    |
+  |  /adjudications --> k-grader disagreements; a senior      |
+  |                    reviewer picks the grade that ships    |
+  |  /deliveries  ---> versioned JSONL, sha256, S3 or disk;   |
+  |                    verify reads the object back           |
+  |  /ops         ---> overview, audit CSV, scheduler tick    |
   |  /metrics     ---> Prometheus                             |
   +-----------------------------+-----------------------------+
                                 |
                 +---------------+----------------+
                 v                                v
      PostgreSQL 16 (RDS)                 S3 bucket (deliveries)
-     experts, tasks, rubrics,            panelist-grades-vN-<sha>.jsonl
-     grades, grade_scores, reviews,
-     payouts, attention_results,
+     experts, tier_changes, tasks,       panelist-grades-vN-<sha>.jsonl
+     rubrics, rate_cards, grades,
+     grade_scores, reviews, consensus,
+     payouts, payout_periods,
+     attention_results, deliveries,
      audit_events, api_keys
 ```
 
@@ -102,10 +108,12 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | POST | `/experts/{id}/api-key` | experts:write | Issue an expert key |
 | GET | `/experts/me` | experts:self | Caller's expert profile |
 | GET | `/experts/{id}/attention` | tasks:read | Lifetime and rolling attention pass rate |
+| GET | `/experts/{id}` | tasks:read | One expert, including tier, tags and calibration score |
 | GET | `/experts/{id}/calibration` | tasks:read | Rolling agreement score, band settings and tier change history |
 | PATCH | `/experts/{id}/status` | experts:write | Pause, reinstate (releases withheld payouts) |
 | POST | `/rubrics` | rubrics:write | Versioned rubric with weighted, scaled criteria |
 | POST | `/rubrics/{id}/versions` | rubrics:write | Publish an immutable new version; queued tasks move to it, claimed tasks stay pinned |
+| GET | `/rubrics/{id}` | experts:self | One rubric version with its criteria, as an expert sees it |
 | PUT | `/rate-cards` | payouts:write | Rate per (tier, task type) |
 | POST | `/tasks` | tasks:write | Bulk create tasks, including golden ones |
 | POST | `/tasks/next` | tasks:claim | Claim the best eligible task (204 when none) |
@@ -116,6 +124,7 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | GET | `/tasks/{id}` | tasks:read | Full task, including hidden fields |
 | POST | `/grades` | grades:write | Submit rubric scores, rationale, time spent; optional `rubric_id` must match the pinned version (409 otherwise) |
 | GET | `/grades` | grades:read | Unreviewed grades |
+| GET | `/grades/{id}` | grades:read | One grade with its scores, rationale and review |
 | POST | `/reviews` | reviews:write | Approve or reject; approval creates the payout |
 | GET | `/adjudications` | tasks:read | Tasks whose graders disagreed, with every grade and the spread |
 | POST | `/adjudications/{task_id}` | adjudications:write | Pick the delivered grade; the rest are outvoted |
@@ -123,8 +132,10 @@ All endpoints take `X-API-Key`. Roles: `expert`, `reviewer`, `senior_reviewer`, 
 | GET | `/payouts/ledger` | payouts:read | Derived totals by expert and status |
 | POST | `/payouts/periods/close` | payouts:write | Batch pending payouts into a statement |
 | GET | `/payouts/periods/{id}/export.csv` | payouts:read | Statement as CSV |
+| GET | `/payouts/periods/{id}` | payouts:read | One statement with its totals |
 | GET | `/analytics/criteria` | analytics:read | Per-criterion mean, stddev, n |
 | GET | `/analytics/agreement` | analytics:read | Agreement between two experts |
+| GET | `/analytics/tasks/{id}/agreement` | analytics:read | Pairwise agreement between the graders of one task |
 | GET | `/analytics/agreement/global` | analytics:read | Agreement across all multi-graded tasks |
 | GET | `/analytics/experts/{id}/reliability` | analytics:read | Approval rate, attention rate, deviation from consensus |
 | POST | `/deliveries` | deliveries:write | Build, checksum and store a new dataset version |
@@ -156,7 +167,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for routing, locking, attention-check, pa
 
 ## Deployment
 
-`deploy/terraform` provisions a VPC, an ECS Fargate service behind an ALB, RDS PostgreSQL 16, a Secrets Manager secret holding `DATABASE_URL` (injected into the task), a CloudWatch log group and an encrypted, versioned S3 bucket for deliveries. The task definition runs `alembic upgrade head` as a non-essential init container before the API starts.
+`deploy/terraform` provisions a VPC, an ECS Fargate service behind an ALB, RDS PostgreSQL 16, Secrets Manager secrets holding `DATABASE_URL` and `ATTENTION_KEY` (both injected into the task), a CloudWatch log group and an encrypted, versioned S3 bucket for deliveries. The task definition runs `alembic upgrade head` as a non-essential init container before the API starts. The tasks themselves sit in the public subnets with public IPs so they can reach ECR and Secrets Manager without a NAT gateway, and their security group admits only the ALB; the database stays private. Moving the tasks into the private subnets means paying for a NAT gateway or VPC endpoints, which this repository does not provision.
 
 ```bash
 make tf-validate                                     # fmt + validate, no credentials needed
@@ -184,8 +195,12 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 | `CONSENSUS_TOLERANCE` | 1.0 | Weighted-score spread a k-grader task may show before it needs adjudication |
 | `CONSENSUS_OUTVOTED_PAYOUT` | partial | Payout rule for outvoted graders: `full`, `partial` or `none` |
 | `CONSENSUS_OUTVOTED_RATE` | 0.5 | Fraction of the card rate paid under the `partial` rule |
+| `DELIVERY_DIR` | ./deliveries | Directory the export writes to when no bucket is set |
 | `DELIVERY_S3_BUCKET` | empty | When set, exports go to S3; otherwise `DELIVERY_DIR` |
 | `AWS_ENDPOINT_URL` | empty | Set for LocalStack |
+| `AWS_REGION` | us-east-1 | Region for the S3 client |
+| `LOG_LEVEL` | INFO | Level for the JSON application log |
+| `BOOTSTRAP_ADMIN_KEY` | empty | Read by `panelist bootstrap` when no key is given on the command line |
 
 ## Testing
 
