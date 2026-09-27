@@ -210,6 +210,7 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 
 | Version | Highlights |
 | --- | --- |
+| 5.1.0 | Correctness and honesty pass: one error handler, consensus redelivery and requeue of rejected tasks, `POST /deliveries` with a verify endpoint and a read scope, keyed attention scheduling, key revocation, documentation tables pinned by a test, and a browser port whose figures say what produced them |
 | 5.0.0 | Operations: `/ops/overview`, the `panelist tick` scheduler pass with lease reclaim and reminders, a CSV audit export, and gauges for the adjudication backlog, paused experts and tier distribution |
 | 4.0.0 | Consensus over k graders: agreement inside the tolerance picks the delivered grade, disagreement opens an adjudication queue for a senior reviewer, outvoted graders are paid by a configurable rule |
 | 3.0.0 | Expert calibration: rolling agreement with reviewers and golden answers, tier promotion and demotion with a hysteresis band, routing follows the live tier |
