@@ -14,9 +14,9 @@ def get_engine():
     if _engine is None:
         # psycopg prepares a statement on the server once a connection has run it five times,
         # and a prepared statement fails with "cached plan must not change result type" after a
-        # migration recreates a table or type it reads. A rolling deploy runs `alembic upgrade
-        # head` beside tasks that are still serving, so statements are parsed and planned on
-        # every execution instead.
+        # migration changes the type of a column it returns. A deploy runs `alembic upgrade head`
+        # beside tasks that are still serving, so statements are parsed and planned on every
+        # execution instead; ARCHITECTURE.md has the measurement.
         _engine = create_engine(
             get_settings().database_url,
             pool_pre_ping=True,
