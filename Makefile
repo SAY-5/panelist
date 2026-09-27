@@ -29,7 +29,7 @@ demo-down:
 	$(COMPOSE) down -v
 
 demo-check:
-	uv run python -m sim.demo --check docs/demo-2026-09-25.json
+	uv run python -m sim.demo --check docs/demo-2026-09-26.json
 
 tf-validate:
 	cd deploy/terraform && terraform fmt -check -recursive && terraform init -backend=false -input=false >/dev/null && terraform validate

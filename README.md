@@ -49,6 +49,7 @@ make test         # pytest against a Testcontainers PostgreSQL (or TEST_DATABASE
 make lint         # ruff check + format check
 make tf-validate  # terraform fmt + validate
 make web-check    # browser port: npm ci, typecheck, selfcheck, production bundle, size budget
+make demo-check   # rebuild the seeded world and compare it with the committed run artifact
 make demo-down    # stop the local stack
 ```
 
@@ -64,35 +65,59 @@ PANELIST DEMO SUMMARY
 ========================================================================
 experts: 40  tasks: 500 (golden: 50)  seed: 7
 config: attention fraction 0.2, window 10, min checks 2, threshold 0.7, lease 3s
-tasks routed by tag (651 claims): biology=111, finance=95, law=89, math=86, medicine=82, python=65, security=59, writing=64
+claims by matched tag (681 claims; a claim matching two of the expert's tags counts under both): biology=95, finance=88, law=81, math=111, medicine=80, python=80, security=65, writing=99
 tag mismatches: 0
 double-assignment attempts blocked: 40/40  (concurrent first claims: 40, unique: 40)
 expired leases reclaimed: 2 (admin sweep: 0)
-attention checks served: 120  failed: 4
+attention checks served: 148  failed: 4
 experts paused: 2 ['expert-04', 'expert-18']
-grades stored: 651  approved: 645  rejected: 4
+grades stored: 681  approved: 667  rejected: 4  regraded after rejection: 3
 tier moves: 47 (47 up, 0 down)  experts by tier: junior=2, senior=0, lead=38
-adjudications: 1 resolved by the senior reviewer, 1 outvoted grades paid at partial (0.5)
-task status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 448, 'rejected': 2}
-payouts created: 647  statement 2026-09-A: 633 payouts, $5,036.00 to 38 experts
-payout ledger: {'pending': 0, 'withheld': 4500, 'paid': 503600}  withheld: $45.00
-inter-rater agreement: 81 multi-graded tasks, 324 score pairs, mean abs diff 0.515, exact 53.4%, within one 95.1%
-criterion means: accuracy=3.67, completeness=3.61, clarity=3.65, safety=3.65
-delivery v1: 448 rows, 316,403 bytes, sha256 131380265e20b1ea87504aefd7b243d4a0ae80000765019d65c021d5c85e6654
-delivery location: s3://panelist-deliveries/deliveries/panelist-grades-v1-131380265e20.jsonl  (s3 (http://localhost:4569))
-grading wall time: 15.1s  claim latency over 729 claims: p50 250.8ms  p95 339.7ms
+adjudications: 5 resolved by the senior reviewer, 5 outvoted grades paid at partial (0.5)
+task status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 450, 'rejected': 0}
+payouts created: 677  statement 2026-09-A: 666 payouts, $5,355.00 to 38 experts
+payout ledger: {'pending': 0, 'withheld': 3900, 'paid': 535500}  withheld: $39.00
+inter-rater agreement: 83 multi-graded tasks, 332 score pairs, mean abs diff 0.560, exact 50.6%, within one 94.3%
+criterion means: accuracy=3.67, completeness=3.63, clarity=3.74, safety=3.59
+delivery v1: 450 rows, 317,832 bytes, sha256 8880674f5ac78b75b414354a38cf1534cf54a05ac30f0cb623865216bcec908f
+delivery location: s3://panelist-deliveries/deliveries/panelist-grades-v1-8880674f5ac7.jsonl  (s3 (http://localhost:4569))
+grading wall time: 20.6s  claim latency over 797 claims: p50 331.7ms  p95 540.0ms
 ------------------------------------------------------------------------
 OPS OVERVIEW (GET /ops/overview)
 queue depth by tag: biology=12, finance=4, law=8, math=9, medicine=12, python=5, security=8, writing=12
-tasks by status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 448, 'rejected': 2}  expired leases: 0
+tasks by status: {'queued': 50, 'assigned': 0, 'submitted': 0, 'adjudication': 0, 'approved': 450, 'rejected': 0}  expired leases: 0
 paused experts: 2 ['expert-04', 'expert-18']  adjudication backlog: 0
-period 2026-09-A: 0 payouts ($0.00) not yet in a statement, $45.00 withheld
-last delivery: v1, 448 rows, 2026-09-10T09:23:24.500719Z
+period 2026-09-A: 0 payouts ($0.00) not yet in a statement, $39.00 withheld
+last delivery: v1, 450 rows, 2026-09-27T00:31:40.466911Z
 tick: reclaimed 0, scored 40 experts, 0 tier moves
 ========================================================================
 ```
 
-Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. The two paused experts are the careless ones; their 14 approved grades are the $45.00 withheld from the statement. The delivery carries 448 rows for 448 approved tasks: the 81 multi-graded tasks contribute the one grade their consensus round selected, not both. One task fell outside the consensus tolerance and was settled by the senior reviewer, whose outvoted grader was paid half the card rate under the `partial` rule. Tier moves run one way here because the spot-check reviewer approves 645 of 651 grades, so nearly every expert clears the promote edge; demotion needs a disagreement streak, which the test suite exercises directly. The tick reports nothing to chase because it runs after the statement close, with the adjudication queue already empty. Claim latency is measured client side with 40 threads hammering a single in-process uvicorn worker. The demo raises the served attention fraction to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
+Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. The two paused experts are the careless ones; their approved grades are the $39.00 withheld from the statement. The delivery carries 450 rows for 450 approved tasks: the 83 multi-graded tasks contribute the one grade their consensus round selected, not both. Five tasks fell outside the consensus tolerance and were settled by the senior reviewer, whose outvoted graders were paid half the card rate under the `partial` rule. Nothing is left in `rejected`: a rejected grade on a single-grader task sends the task back to the queue, and the three tasks that happened to were regraded by someone else. Tier moves run one way here because the spot-check reviewer approves 667 of 681 grades, so nearly every expert clears the promote edge; demotion needs a disagreement streak, which the test suite exercises directly. The tick reports nothing to chase because it runs after the statement close, with the adjudication queue already empty. The demo raises the served attention share to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
+
+What the seed fixes and what it does not: `seed: 7` fixes the expert roster with their tags and tiers, which two experts grade carelessly and which two abandon their first claim, the task set with its tags, types and priorities, which tasks are golden, the reference scores behind every task and each expert's grading noise. It does not fix which expert claims which task, because 40 threads race for rows: the per-tag claim counts, the number of checks served, which grades a reviewer rejects, the agreement statistics, the delivery checksum and every duration change from run to run. The block above is one run at commit df7ae50 on macOS 25.0.0 arm64 with 10 CPUs and PostgreSQL 16.14 under Python 3.12.13, with the machine's load average between 20 and 28 while it ran; `docs/demo-2026-09-26.json` is that run's artifact, and `make demo-check` rebuilds the world from the seed and compares its fingerprint with the one recorded there. Claim latency is measured client side with 40 threads against a single in-process uvicorn worker, so it is a contention figure, not a per-request cost; `uv run python -m sim.bench` measures both separately.
+
+### Claim-path benchmark
+
+`uv run python -m sim.bench` seeds one tag's worth of experts and tasks, then claims twice: once
+with a single claimant, once with all of them, so the cost of a claim can be told apart from the
+cost of queueing behind other claimants. Measured at commit df7ae50 on macOS 25.0.0 arm64, 10
+CPUs, PostgreSQL 16.14 in the compose container, load average between 22 and 27 while the runs
+happened, which is a busy machine and inflates every number below:
+
+| claimants | API | claims | p50 | p95 | claims/s | tasks handed to two claimants |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | one worker, in process | 50 | 13.3 ms | 16.1 ms | 68.5 | 0 |
+| 40 | one worker, in process | 520 | 294.9 ms | 472.4 ms | 125.0 | 0 |
+| 1 | `uvicorn --workers 4` | 50 | 21.4 ms | 48.3 ms | 39.3 | 0 |
+| 40 | `uvicorn --workers 4` | 520 | 144.7 ms | 350.1 ms | 234.4 | 0 |
+
+A claim costs about 13 ms when nothing competes for the worker. The 295 ms at 40 claimants is
+almost entirely queueing: four workers halve it and nearly double throughput on the same
+database, because `FOR UPDATE SKIP LOCKED` lets the four processes claim different rows rather
+than wait on each other. No task was ever handed to two claimants in any of the four phases. The
+single-claimant row is slower against the four-worker server because each request crosses a real
+socket to another process instead of staying in this one.
 
 ### Browser demo
 

@@ -20,6 +20,10 @@ make tf-validate
 make web-check   # npm ci, typecheck, selfcheck, production bundle, size budget
 ```
 
+`make demo` prints the summary block the README quotes; regenerate the committed artifact with
+`uv run python -m sim.demo --json docs/demo-<date>.json`, point `demo-check` at the new file, and
+replace the block in the README with the output of that same run rather than editing numbers by hand.
+
 All four must pass. CI runs the same steps plus a Docker image build; `make setup` and CI both install with `uv sync --locked`, so a dependency change must update `uv.lock` in the same commit.
 
 ## Conventions
