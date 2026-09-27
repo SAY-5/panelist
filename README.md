@@ -97,45 +97,81 @@ tick: reclaimed 0, scored 40 experts, 0 tier moves
 
 Reading the numbers: the 50 queued tasks at the end are the golden tasks, which stay in the queue because they are reusable across experts. Both careless experts were paused in this run; their approved grades are the $28.50 withheld from the statement, and how many of the two a run pauses is not fixed, which the next paragraph sets out. The delivery carries 450 rows for 450 approved tasks: the 82 multi-graded tasks contribute the one grade their consensus round selected, not both. Three tasks fell outside the consensus tolerance and were settled by the senior reviewer, whose outvoted graders were paid half the card rate under the `partial` rule. Nothing is left in `rejected` at the end: a rejected grade on a single-grader task sends the task back to the queue, where a later round grades it again. Tier moves run one way here because the spot-check reviewer approves 656 of 664 grades, so nearly every expert clears the promote edge; demotion needs a disagreement streak, which the test suite exercises directly. The tick reclaims nothing and moves no tier because it runs after the statement close with the adjudication queue already empty; its one reminder counts the experts holding fewer than the five calibration signals a score needs, one of them here. The demo raises the served attention share to 0.2 and lowers the pause threshold to two checks so the guard trips inside a 500-task run; production defaults are 0.1 and 3.
 
-What the seed fixes and what it does not: `seed: 7` fixes the expert roster with their tags and tiers, which two experts grade carelessly and which two abandon their first claim, the task set with its tags, types and priorities, which tasks are golden, the reference scores behind every task and each expert's grading noise. It does not fix which expert claims which task, because 40 threads race for rows: the per-tag claim counts, the number of checks served, how many of the two careless experts are paused, which grades a reviewer rejects, the agreement statistics, the delivery checksum and every duration change from run to run. The pause count is worth spelling out, because a single run reads like a rule: the guard acts only once it holds `ATTENTION_MIN_CHECKS` of an expert's checks (two in the demo) and their rolling pass rate is under the threshold, so a careless expert who has failed one is paused on their second check, while one served a single check stays active however badly they graded it. Fifteen runs of the demo at this configuration on one machine paused both careless experts in fourteen of them and one in the fifteenth, where the other careless expert had been served a single check. Only those two can fail a check at all: a careful grade stays within one of the reference score and the tolerance is one. The block above is one run at commit 67dae00 on macOS 25.0.0 arm64 with 10 CPUs and PostgreSQL 16.14 under Python 3.12.13; `docs/demo-2026-09-26.json` is that run's artifact, its `environment` block records the one, five and fifteen minute load averages at the run's start and end (15.15 and 12.22 over one minute), and `make demo-check` rebuilds the world from the seed and compares its fingerprint with the one recorded there. Claim latency is measured client side with 40 threads against a single in-process uvicorn worker, so it is a contention figure, not a per-request cost; `uv run python -m sim.bench` measures both separately.
+What the seed fixes and what it does not: `seed: 7` fixes the expert roster with their tags and tiers, which two experts grade carelessly and which two abandon their first claim, the task set with its tags, types and priorities, which tasks are golden, the reference scores behind every task and each expert's grading noise. It does not fix which expert claims which task, because 40 threads race for rows: the per-tag claim counts, the number of checks served, how many of the two careless experts are paused, which grades a reviewer rejects, the agreement statistics, the delivery checksum and every duration change from run to run. The pause count is worth spelling out, because a single run reads like a rule: the guard acts only once it holds `ATTENTION_MIN_CHECKS` of an expert's checks (two in the demo) and their rolling pass rate is under the threshold, so a careless expert who has failed one is paused on their second check, while one served a single check stays active however badly they graded it. Fifteen runs of the demo at this configuration on one machine paused both careless experts in fourteen of them and one in the fifteenth, where the other careless expert had been served a single check. Only those two can fail a check at all: a careful grade stays within one of the reference score and the tolerance is one. The block above is one run at commit 67dae00 on Darwin 25.0.0 arm64 with 10 CPUs and PostgreSQL 16.14 under Python 3.12.13; `docs/demo-2026-09-26.json` is that run's artifact, its `environment` block records the one, five and fifteen minute load averages at the run's start and end (15.15 and 12.22 over one minute), and `make demo-check` rebuilds the world from the seed and compares its fingerprint with the one recorded there. Claim latency is measured client side with 40 threads against a single in-process uvicorn worker, so it is a contention figure, not a per-request cost; `uv run python -m sim.bench` measures both separately.
 
 ### Claim-path benchmark
 
 `uv run python -m sim.bench` seeds one tag's worth of experts and tasks, then claims twice: once
 with a single claimant, once with all of them, so the cost of a claim can be told apart from the
-cost of queueing behind other claimants. `--json PATH` writes the run as well as printing it and
-appends to a path that already holds runs, so a set of rounds lands in one file:
-`docs/bench-2026-09-27.json` is the artifact this table quotes. It holds all six runs below, each
-with both of its rows, the claimant and task counts, the commit, the machine, the CPU count, the
-PostgreSQL and Python versions, and the one, five and fifteen minute load averages at the run's
-start and end. The six ran at commit a385a96 on macOS 25.0.0 arm64 with 10 CPUs and PostgreSQL
-16.14 in the compose container under Python 3.12.13, with the database reset before each run and
-the two servers alternating so that a pair of rounds shares a load window. The one minute average
-at the starts ran from 7.35 to 16.60 on this 10 CPU machine, so every number below carries a busy
-machine's queueing. The three readings of each figure are that server's three rounds, in the
-order the artifact holds them:
+cost of queueing behind other claimants. `uv run python -m sim.bench_session --json PATH` runs a
+session of three rounds on each of two servers, one uvicorn worker inside the benchmark's own
+process and `uvicorn --workers 4` over a local socket, alternating so that a pair of rounds shares a
+load window. The schema is reset before every run and every run gets a new server process with the
+same settings. The session writes its six runs to one artifact, each with both of its rows, the
+claimant and task counts, the commit, the machine, the CPU count, the PostgreSQL and Python
+versions, and the one, five and fifteen minute load averages at the run's start and end. Two
+sessions are on record, both at 40 claimants and 600 tasks:
 
-| claimants | API | claims | p50 ms | p95 ms | claims/s | tasks handed to two claimants |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | one worker, in process | 50 | 9.9, 8.6, 8.4 | 25.6, 10.5, 12.2 | 81.9, 105.0, 102.6 | 0 |
-| 40 | one worker, in process | 520 | 210.3, 211.9, 220.9 | 268.7, 281.9, 315.9 | 181.7, 181.3, 170.7 | 0 |
-| 1 | `uvicorn --workers 4` | 50 | 8.3, 11.3, 9.8 | 10.8, 34.6, 25.2 | 98.7, 66.4, 83.6 | 0 |
-| 40 | `uvicorn --workers 4` | 520 | 96.5, 85.3, 104.1 | 204.8, 172.0, 324.6 | 308.3, 385.8, 273.1 | 0 |
+| session | artifact | commit | runs started, UTC | one minute load at the starts | at the ends |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `docs/bench-2026-09-27.json` | a385a96 | 2026-09-27 11:06:14 to 11:06:47 | 7.35 to 16.60 | 7.35 to 19.60 |
+| 2 | `docs/bench-2026-09-27-2.json` | e394ea6 | 2026-09-27 22:41:30 to 22:42:08 | 9.26 to 11.89 | 9.26 to 11.34 |
 
-A claim costs 8.3 to 11.3 ms when nothing competes for the worker, on either server. The 210 to
-221 ms at 40 claimants against one worker is almost entirely queueing: four workers bring the p50
-down to 85 to 104 ms and throughput up from 171 to 182 claims a second to 273 to 386, because
-`FOR UPDATE SKIP LOCKED` lets the four processes claim different rows rather than wait on each
-other. No task was ever handed to two claimants in any phase of any round. Two things the table
-does not settle. The single-claimant rows do not separate the two servers: their p50 ranges
-overlap (8.4 to 9.9 ms in process, 8.3 to 11.3 ms across a socket to four workers) and which one
-is ahead changes from round to round, so this table says nothing about what the socket hop costs.
-The contended p95 ranges overlap as well (268.7 to 315.9 ms against one worker, 172.0 to 324.6
-across four), so what four workers move is the p50 and the throughput, not the tail. What moves
-with the machine is in the artifact: on both servers the round that started at the highest load
-holds that server's highest contended p50 and p95, and below that round the ordering does not
-follow the load. The artifact records a base URL for the four-worker rows rather than a worker
-count; the server behind them was started with the command in `sim/bench.py`.
+Both sessions ran on Darwin 25.0.0 arm64 with 10 CPUs, PostgreSQL 16.14 in the compose container and
+Python 3.12.13. Session 1 was run by hand before `sim/bench_session.py` existed, and its four-worker
+server was started with the command `sim/bench.py` documented at the time, which leaves the
+service's defaults in place unless the shell sets them, among them an attention fraction of 0.1
+where the in-process server runs with 0. Session 2 is the session script's first run and the first
+at a commit whose engine does not prepare statements on the server, and that change does not account
+for the gap between the sessions set out below: run alternately in one sitting, in process and four
+times each (`docs/prepared-statements-2026-09-27-solo.json` at one claimant,
+`docs/prepared-statements-2026-09-27-contended.json` at 40), session 2's commit and bc32218, the
+last one whose engine prepared statements, gave readings that overlap on every figure, and bc32218's
+contended p50 sat above session 1's range just as session 2's does. The three readings in a cell are
+that session's three rounds on that server, in the order its artifact holds them:
+
+| session | claimants | API | claims | p50 ms | p95 ms | claims/s | tasks handed to two claimants |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | one worker, in process | 50 | 9.9, 8.6, 8.4 | 25.6, 10.5, 12.2 | 81.9, 105.0, 102.6 | 0 |
+| 2 | 1 | one worker, in process | 50 | 11.9, 11.8, 12.1 | 36.2, 14.3, 16.0 | 67.4, 77.9, 76.5 | 0 |
+| 1 | 40 | one worker, in process | 520 | 210.3, 211.9, 220.9 | 268.7, 281.9, 315.9 | 181.7, 181.3, 170.7 | 0 |
+| 2 | 40 | one worker, in process | 520 | 284.4, 323.2, 260.5 | 376.8, 634.8, 315.6 | 134.0, 110.2, 148.4 | 0 |
+| 1 | 1 | `uvicorn --workers 4` | 50 | 8.3, 11.3, 9.8 | 10.8, 34.6, 25.2 | 98.7, 66.4, 83.6 | 0 |
+| 2 | 1 | `uvicorn --workers 4` | 50 | 13.0, 12.3, 13.4 | 15.8, 25.3, 15.1 | 73.3, 70.8, 70.3 | 0 |
+| 1 | 40 | `uvicorn --workers 4` | 520 | 96.5, 85.3, 104.1 | 204.8, 172.0, 324.6 | 308.3, 385.8, 273.1 | 0 |
+| 2 | 40 | `uvicorn --workers 4` | 520 | 97.3, 94.2, 105.3 | 239.9, 222.4, 177.6 | 261.2, 277.8, 303.4 | 0 |
+
+Across both sessions the figures range as follows:
+
+| claimants | API | p50 ms | p95 ms | claims/s |
+| --- | --- | --- | --- | --- |
+| 1 | one worker, in process | 8.4 to 12.1 | 10.5 to 36.2 | 67.4 to 105.0 |
+| 40 | one worker, in process | 210.3 to 323.2 | 268.7 to 634.8 | 110.2 to 181.7 |
+| 1 | `uvicorn --workers 4` | 8.3 to 13.4 | 10.8 to 34.6 | 66.4 to 98.7 |
+| 40 | `uvicorn --workers 4` | 85.3 to 105.3 | 172.0 to 324.6 | 261.2 to 385.8 |
+
+A fresh session can land well outside another session's figures, and the recorded load average does
+not say when it will. Session 2's runs started at one minute loads inside session 1's range, yet
+every in-process round it ran had a higher p50 and a lower throughput than every one of session 1's:
+its contended p50 readings sit 18 to 46 percent above session 1's highest, its single-claimant p50
+readings 19 to 22 percent above, and its contended throughput 13 to 35 percent below session 1's
+lowest. Over the socket its single-claimant p50 readings sit 9 to 19 percent above session 1's
+highest, while its four-worker contended p50 readings overlap session 1's. Within a session the load
+does not order the rounds either: in session 1 the round that started at the highest load had each
+server's highest contended p50, in session 2 it had neither server's. The absolute figures describe
+the session that produced them, not the machine.
+
+What held in both sessions is the comparison between the servers. At 40 claimants every four-worker
+p50 is below every one-worker p50 and every four-worker throughput above every one-worker
+throughput; within a pair of rounds, one worker's p50 is 2.1 to 3.4 times four workers', and four
+workers claim 1.6 to 2.5 times as fast, because `FOR UPDATE SKIP LOCKED` lets four processes claim
+different rows rather than queue behind one. No task was handed to two claimants in any phase of any
+round. Two things the sessions do not settle. The contended p95 ranges overlap, so what four workers
+reliably move is the p50 and the throughput, not the tail. And at one claimant the two servers are
+within 0.5 to 2.7 ms of each other in every pair of rounds, the in-process one ahead in five of the
+six, while each server's median moved by more than 3 ms between the sessions, so these figures do
+not price the socket hop. The artifacts record a base URL for the four-worker rows rather than a
+worker count.
 
 ### Browser demo
 
