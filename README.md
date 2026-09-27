@@ -104,13 +104,16 @@ What the seed fixes and what it does not: `seed: 7` fixes the expert roster with
 `uv run python -m sim.bench` seeds one tag's worth of experts and tasks, then claims twice: once
 with a single claimant, once with all of them, so the cost of a claim can be told apart from the
 cost of queueing behind other claimants. `uv run python -m sim.bench_session --json PATH` runs a
-session of three rounds on each of two servers, one uvicorn worker inside the benchmark's own
-process and `uvicorn --workers 4` over a local socket, alternating so that a pair of rounds shares a
-load window. The schema is reset before every run and every run gets a new server process with the
+session of three rounds on each of two servers, alternating so that a pair of rounds shares a load
+window. The benchmark reaches both over loopback TCP; what differs is where they run. One is a
+single uvicorn worker on a thread of the benchmark's own process, sharing that interpreter and its
+GIL with the claimant threads, and the other is `uvicorn --workers 4`, four worker processes of
+their own. The schema is reset before every run and every run gets a new server process with the
 same settings. The session writes its six runs to one artifact, each with both of its rows, the
 claimant and task counts, the commit, the machine, the CPU count, the PostgreSQL and Python
 versions, and the one, five and fifteen minute load averages at the run's start and end. Two
-sessions are on record, both at 40 claimants and 600 tasks:
+sessions are on record, both at 40 claimants and 600 tasks, so each run makes 50 claims with one
+claimant and then 520 with all 40, 13 apiece:
 
 | session | artifact | commit | runs started, UTC | one minute load at the starts | at the ends |
 | --- | --- | --- | --- | --- | --- |
@@ -121,14 +124,9 @@ Both sessions ran on Darwin 25.0.0 arm64 with 10 CPUs, PostgreSQL 16.14 in the c
 Python 3.12.13. Session 1 was run by hand before `sim/bench_session.py` existed, and its four-worker
 server was started with the command `sim/bench.py` documented at the time, which leaves the
 service's defaults in place unless the shell sets them, among them an attention fraction of 0.1
-where the in-process server runs with 0. Session 2 is the session script's first run and the first
-at a commit whose engine does not prepare statements on the server, and that change does not account
-for the gap between the sessions set out below: run alternately in one sitting, in process and four
-times each (`docs/prepared-statements-2026-09-27-solo.json` at one claimant,
-`docs/prepared-statements-2026-09-27-contended.json` at 40), session 2's commit and bc32218, the
-last one whose engine prepared statements, gave readings that overlap on every figure, and bc32218's
-contended p50 sat above session 1's range just as session 2's does. The three readings in a cell are
-that session's three rounds on that server, in the order its artifact holds them:
+where the in-process server runs with 0. Session 2 is the session script's first run. The three
+readings in a cell are that session's three rounds on that server, in the order its artifact holds
+them:
 
 | session | claimants | API | claims | p50 ms | p95 ms | claims/s | tasks handed to two claimants |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -155,23 +153,37 @@ not say when it will. Session 2's runs started at one minute loads inside sessio
 every in-process round it ran had a higher p50 and a lower throughput than every one of session 1's:
 its contended p50 readings sit 18 to 46 percent above session 1's highest, its single-claimant p50
 readings 19 to 22 percent above, and its contended throughput 13 to 35 percent below session 1's
-lowest. Over the socket its single-claimant p50 readings sit 9 to 19 percent above session 1's
-highest, while its four-worker contended p50 readings overlap session 1's. Within a session the load
-does not order the rounds either: in session 1 the round that started at the highest load had each
+lowest. On the four-worker server its single-claimant p50 readings sit 9 to 19 percent above session
+1's highest, while its contended p50 readings overlap session 1's. Within a session the load does
+not order the rounds either: in session 1 the round that started at the highest load had each
 server's highest contended p50, in session 2 it had neither server's. The absolute figures describe
 the session that produced them, not the machine.
+
+Session 2 is also the first session at a commit whose engine does not prepare statements on the
+server, and a comparison finds no sign that this change accounts for the gap. Run alternately with
+bc32218, the last commit whose engine prepared them, in one sitting, in process and four times each,
+session 2's commit gave readings that overlap bc32218's on every figure
+(`docs/prepared-statements-2026-09-27-solo.json`,
+`docs/prepared-statements-2026-09-27-contended.json`). Those runs are longer than a session's: the
+contended comparison seeds 2,050 tasks and makes 50 claims with one claimant and then 2,000 with all
+40, 50 apiece, and the single-claimant comparison seeds 1,000 tasks for two phases of 500 claims by
+one claimant. Their absolute figures are not comparable with the sessions' for that reason; what
+they measure is the difference between the two commits on one workload.
 
 What held in both sessions is the comparison between the servers. At 40 claimants every four-worker
 p50 is below every one-worker p50 and every four-worker throughput above every one-worker
 throughput; within a pair of rounds, one worker's p50 is 2.1 to 3.4 times four workers', and four
-workers claim 1.6 to 2.5 times as fast, because `FOR UPDATE SKIP LOCKED` lets four processes claim
-different rows rather than queue behind one. No task was handed to two claimants in any phase of any
-round. Two things the sessions do not settle. The contended p95 ranges overlap, so what four workers
+workers claim 1.6 to 2.5 times as fast. No task was handed to two claimants in any phase of any
+round. Three things the sessions do not settle. They do not say why four workers are faster. The
+four-worker server runs the claim path in four interpreters at once, with `FOR UPDATE SKIP LOCKED`
+keeping their claims off each other's rows, while the in-process server runs it in one interpreter
+whose GIL it shares with the 40 claimant threads; the two servers differ in both ways at once, so
+these rows cannot separate the two causes. The contended p95 ranges overlap, so what four workers
 reliably move is the p50 and the throughput, not the tail. And at one claimant the two servers are
 within 0.5 to 2.7 ms of each other in every pair of rounds, the in-process one ahead in five of the
-six, while each server's median moved by more than 3 ms between the sessions, so these figures do
-not price the socket hop. The artifacts record a base URL for the four-worker rows rather than a
-worker count.
+six, while each server's median moved by more than 3 ms between the sessions, so at one claimant
+these figures do not tell the two placements apart. The artifacts record a base URL for the
+four-worker rows rather than a worker count.
 
 ### Browser demo
 

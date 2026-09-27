@@ -5,9 +5,11 @@ A round resets the schema with `alembic downgrade base` and `alembic upgrade hea
 runs `sim.bench --base-url` against it and stops it. Every run of either server therefore starts
 from a new process with an empty connection pool, and a pair of runs shares a load window. The
 four-worker server gets the settings in `sim.bench.SERVER_SETTINGS`, the ones the in-process
-server runs under, and uvicorn's warning log level, so the two servers differ in their worker
-count and in the socket between client and server. All runs land in one artifact, and a session
-refuses a path that already holds runs, so an artifact is one session.
+server runs under, and uvicorn's warning log level. The benchmark reaches both servers over
+loopback TCP, so what differs is where they run: the in-process server is one worker on a thread
+of the benchmark's own process, sharing its interpreter and GIL with the claimant threads, and the
+other is four worker processes of their own. All runs land in one artifact, and a session refuses
+a path that already holds runs, so an artifact is one session.
 
     DATABASE_URL=postgresql+psycopg://panelist:panelist@localhost:5439/panelist \
         uv run python -m sim.bench_session --json docs/bench-$(date -u +%F).json
