@@ -12,16 +12,21 @@ runs against an empty database or one that already holds the demo's rows.
         uv run python -m sim.bench --claimants 40 --tasks 600
 
 With `--base-url` it measures a server that is already running instead of starting one in
-this process, which is how the multi-worker rows in the README were produced:
+this process. Give that server the settings in `SERVER_SETTINGS`, which the in-process server
+runs under, or the two rows measure different configurations; by hand that is
 
-    uv run uvicorn panelist.main:app --port 8767 --workers 4
+    ATTENTION_FRACTION=0 LOG_LEVEL=WARNING \
+        uv run uvicorn panelist.main:app --port 8767 --workers 4 --log-level warning
     ... uv run python -m sim.bench --base-url http://127.0.0.1:8767
 
-`--json PATH` writes the run as well as printing it: both rows, the claimant and task counts, the
-commit, the machine, the CPU count, the PostgreSQL and Python versions, and the load average at
-the start and the end of the run. A PATH that already holds runs is appended to, so several rounds
-of one configuration land in one artifact. `docs/bench-2026-09-27.json` is the artifact the
-README's table quotes.
+and the server can stay up across `alembic downgrade base` and `alembic upgrade head` between
+runs. `--json PATH` writes the run as well as printing it: both rows, the claimant and task
+counts, the commit, the machine, the CPU count, the PostgreSQL and Python versions, and the load
+average at the start and the end of the run. A PATH that already holds runs is appended to.
+
+The README's benchmark table quotes whole sessions, each one artifact under `docs/`, and
+`sim/bench_session.py` is how a session is run: alternating rounds on the in-process server and
+on a four-worker server it starts for each round, with the schema reset before every run.
 """
 
 import argparse
@@ -40,10 +45,16 @@ import httpx
 import uvicorn
 from sqlalchemy import text
 
-os.environ.setdefault("ATTENTION_FRACTION", "0")  # no golden serves in the measurement
-os.environ.setdefault("LEASE_SECONDS", "900")
-os.environ.setdefault("DELIVERY_S3_BUCKET", "")
-os.environ.setdefault("LOG_LEVEL", "WARNING")
+# The settings a measured server runs under. The in-process server reads them from this process's
+# environment, and `sim.bench_session` starts its four-worker server with the same ones.
+SERVER_SETTINGS = {
+    "ATTENTION_FRACTION": "0",  # no golden serves in the measurement
+    "LEASE_SECONDS": "900",
+    "DELIVERY_S3_BUCKET": "",
+    "LOG_LEVEL": "WARNING",
+}
+for _name, _value in SERVER_SETTINGS.items():
+    os.environ.setdefault(_name, _value)
 
 from panelist import __version__  # noqa: E402
 from panelist.cli import bootstrap  # noqa: E402
