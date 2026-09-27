@@ -116,9 +116,9 @@ a busy machine's queueing. The three readings of each figure are the three round
 | 1 | `uvicorn --workers 4` | 50 | 12.2, 13.1, 11.7 | 25.1, 17.9, 17.4 | 69.4, 61.9, 78.7 | 0 |
 | 40 | `uvicorn --workers 4` | 520 | 114.4, 133.6, 137.8 | 284.8, 357.9, 269.8 | 248.4, 238.9, 226.4 | 0 |
 
-A claim costs 10.6 to 13.1 ms when nothing competes for the worker, on either server. The 259 to 271 ms at 40
-claimants against one worker is almost entirely queueing: four workers bring the p50 down to 114
-to 138 ms and throughput up from 140 to 146 claims a second to 226 to 248, because
+A claim costs 10.6 to 13.1 ms when nothing competes for the worker, on either server. The 259 to
+271 ms at 40 claimants against one worker is almost entirely queueing: four workers bring the p50
+down to 114 to 138 ms and throughput up from 140 to 146 claims a second to 226 to 248, because
 `FOR UPDATE SKIP LOCKED` lets the four processes claim different rows rather than wait on each
 other. No task was ever handed to two claimants in any phase of any round. The single-claimant
 rows do not separate the two servers: their p50 ranges overlap (10.6 to 13.0 ms in process, 11.7
