@@ -12,20 +12,29 @@ runs against an empty database or one that already holds the demo's rows.
         uv run python -m sim.bench --claimants 40 --tasks 600
 
 With `--base-url` it measures a server that is already running instead of starting one in
-this process, which is how the multi-worker row in the README was produced:
+this process, which is how the multi-worker rows in the README were produced:
 
     uv run uvicorn panelist.main:app --port 8767 --workers 4
     ... uv run python -m sim.bench --base-url http://127.0.0.1:8767
+
+`--json PATH` writes the run as well as printing it: both rows, the claimant and task counts, the
+commit, the machine, the CPU count, the PostgreSQL and Python versions, and the load average at
+the start and the end of the run. A PATH that already holds runs is appended to, so several rounds
+of one configuration land in one artifact. `docs/bench-2026-09-27.json` is the artifact the
+README's table quotes.
 """
 
 import argparse
+import json
 import os
+import platform
 import secrets
 import statistics
 import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import httpx
 import uvicorn
@@ -138,32 +147,60 @@ def phase(label: str, keys: list[str], per_claimant: int, base: str) -> dict:
         "claimants": len(keys),
         "claims": len(claimed),
         "distinct": len(set(claimed)),
-        "p50_ms": percentile(latencies, 0.5) * 1000,
-        "p95_ms": percentile(latencies, 0.95) * 1000,
-        "mean_ms": statistics.fmean(latencies) * 1000 if latencies else 0.0,
-        "throughput": len(claimed) / elapsed if elapsed else 0.0,
+        "p50_ms": round(percentile(latencies, 0.5) * 1000, 1),
+        "p95_ms": round(percentile(latencies, 0.95) * 1000, 1),
+        "mean_ms": round(statistics.fmean(latencies) * 1000, 1) if latencies else 0.0,
+        "throughput": round(len(claimed) / elapsed, 1) if elapsed else 0.0,
     }
 
 
-def format_load(load: tuple[float, ...]) -> str:
+def load_average() -> list[float]:
+    """The three load averages, rounded, so a recorded run carries the load it ran under."""
+    return [round(v, 2) for v in os.getloadavg()]
+
+
+def format_load(load: list[float]) -> str:
     return ", ".join(f"{v:.2f}" for v in load)
 
 
-def header(note: str, load_start: tuple[float, ...]) -> list[str]:
+def environment(load_start: list[float], load_end: list[float]) -> dict:
     try:
         sha = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         sha = "unknown"
     with session_factory()() as db:
         pg = str(db.execute(text("SHOW server_version")).scalar())
+    return {
+        "panelist_version": __version__,
+        "commit": sha,
+        "python": platform.python_version(),
+        "machine": f"{platform.system()} {platform.release()} {platform.machine()}",
+        "cpu_count": os.cpu_count(),
+        "postgres": pg,
+        "load_average_start": load_start,
+        "load_average_end": load_end,
+    }
+
+
+def header(env: dict, note: str) -> list[str]:
     return [
-        f"panelist {__version__} at {sha}, PostgreSQL {pg}, {os.cpu_count()} CPUs,"
-        f" load average {format_load(load_start)} at the start,"
-        f" {format_load(os.getloadavg())} at the end",
+        f"panelist {env['panelist_version']} at {env['commit'][:7]}, {env['machine']},"
+        f" {env['cpu_count']} CPUs, PostgreSQL {env['postgres']},"
+        f" Python {env['python']}, load average {format_load(env['load_average_start'])}"
+        f" at the start, {format_load(env['load_average_end'])} at the end",
         note,
     ]
+
+
+def write_artifact(path: str, record: dict) -> None:
+    """Append the run to PATH, so several rounds of one configuration land in one artifact."""
+    target = Path(path)
+    document = json.loads(target.read_text()) if target.exists() else {"runs": []}
+    document["runs"].append(record)
+    target.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
+    print(f"wrote {path}, holding {len(document['runs'])} runs")
 
 
 def main(argv=None) -> int:
@@ -174,9 +211,11 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--base-url", default="", help="measure a server already running at this URL"
     )
+    parser.add_argument("--json", metavar="PATH", help="also write the run, appending to PATH")
     args = parser.parse_args(argv)
 
-    load_start = os.getloadavg()
+    started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    load_start = load_average()
     key = bootstrap(f"pk_bench_{secrets.token_urlsafe(16)}")
     base = args.base_url or BASE
     server = None
@@ -197,7 +236,8 @@ def main(argv=None) -> int:
         if server is not None:
             server.should_exit = True
 
-    for line in header(note, load_start):
+    env = environment(load_start, load_average())
+    for line in header(env, note):
         print(line)
     columns = ("phase", "clients", "claims", "unique", "p50 ms", "p95 ms", "claims/s")
     print(
@@ -211,6 +251,22 @@ def main(argv=None) -> int:
         )
     doubled = sum(r["claims"] - r["distinct"] for r in rows)
     print(f"tasks handed to two claimants: {doubled}")
+    if args.json:
+        write_artifact(
+            args.json,
+            {
+                "environment": env,
+                "run": {
+                    "base_url": args.base_url,
+                    "claimants": args.claimants,
+                    "solo_claims": args.solo_claims,
+                    "started_at": started_at,
+                    "tasks": args.tasks,
+                },
+                "rows": rows,
+                "tasks_handed_to_two_claimants": doubled,
+            },
+        )
     return 0
 
 
