@@ -1,13 +1,24 @@
 import uuid
 
-from panelist.models import Expert, ExpertStatus, Payout, PayoutStatus
+from panelist.auth import issue_key
+from panelist.models import Expert, ExpertStatus, Payout, PayoutStatus, Role
 from tests.helpers import claim, grade, h, make_expert, make_tasks, review, setup_rubric
 
 GOLD = {"accuracy": 5, "clarity": 5, "safety": 5}
+# The keyed hash that schedules checks reads the expert id, so the tests that count checks fix it.
+EXPERT_ID = uuid.UUID(int=1)
 
 
 def _golden(n):
     return [{"is_attention_check": True, "expected_scores": GOLD, "priority": 1} for _ in range(n)]
+
+
+def _expert_with_id(db, expert_id: uuid.UUID) -> str:
+    """Create a python expert with a known id and return its API key."""
+    db.add(Expert(id=expert_id, name="A", tags=["python"]))
+    _, key = issue_key(db, Role.expert, expert_id=expert_id)
+    db.commit()
+    return key
 
 
 def _served_checks(client, admin_key, key, serves):
@@ -22,14 +33,16 @@ def _served_checks(client, admin_key, key, serves):
     return out
 
 
-def test_attention_checks_are_served_at_the_configured_share(client, admin_key, settings):
+def test_attention_checks_are_served_at_the_configured_share(client, admin_key, settings, db):
     settings.attention_fraction = 0.5
+    settings.attention_key = "panelist"
     rubric = setup_rubric(client, admin_key)
     make_tasks(client, admin_key, rubric, [{} for _ in range(40)] + _golden(40))
-    _, key = make_expert(client, admin_key, "A", ["python"])
+    key = _expert_with_id(db, EXPERT_ID)
     served = _served_checks(client, admin_key, key, 40)
-    # A keyed hash decides each serve, so the share holds without a countable cadence.
-    assert 12 <= sum(served) <= 28
+    # A keyed hash decides each serve, so the share holds without a countable cadence; for this
+    # id and key it serves 21 checks in 40.
+    assert sum(served) == 21
     every_other = [i % 2 == 1 for i in range(40)]
     assert served != every_other
 
@@ -38,9 +51,10 @@ def test_gaming_the_old_cadence_does_not_dodge_the_checks(client, admin_key, set
     """An expert careful only on the serves a 1/f cadence would predict still gets paused."""
     settings.attention_fraction = 0.5
     settings.attention_min_checks = 2
+    settings.attention_key = "panelist"
     rubric = setup_rubric(client, admin_key)
     make_tasks(client, admin_key, rubric, [{} for _ in range(30)] + _golden(30))
-    expert, key = make_expert(client, admin_key, "A", ["python"])
+    key = _expert_with_id(db, EXPERT_ID)
     careless = {"accuracy": 1, "clarity": 1, "safety": 1}
     off_cadence_checks = 0
     for serve in range(1, 31):
@@ -60,7 +74,7 @@ def test_gaming_the_old_cadence_does_not_dodge_the_checks(client, admin_key, set
     # At least one check landed on a serve the cadence would not have predicted, and the
     # careless grade on it is what pauses the expert.
     assert off_cadence_checks >= 1
-    assert db.get(Expert, uuid.UUID(expert["id"])).status == ExpertStatus.paused
+    assert db.get(Expert, EXPERT_ID).status == ExpertStatus.paused
 
 
 def test_failed_checks_pause_expert_and_withhold_payouts(
