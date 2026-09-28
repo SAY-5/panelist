@@ -1,0 +1,304 @@
+{
+  "runs": [
+    {
+      "environment": {
+        "commit": "e394ea6a4b910a5eba438f6c017f949cb386fe01",
+        "cpu_count": 10,
+        "load_average_end": [
+          11.34,
+          11.67,
+          12.41
+        ],
+        "load_average_start": [
+          11.89,
+          11.78,
+          12.45
+        ],
+        "machine": "Darwin 25.0.0 arm64",
+        "panelist_version": "5.1.0",
+        "postgres": "16.14",
+        "python": "3.12.13"
+      },
+      "rows": [
+        {
+          "claimants": 1,
+          "claims": 50,
+          "distinct": 50,
+          "label": "single claimant",
+          "mean_ms": 14.7,
+          "p50_ms": 11.9,
+          "p95_ms": 36.2,
+          "throughput": 67.4
+        },
+        {
+          "claimants": 40,
+          "claims": 520,
+          "distinct": 520,
+          "label": "all claimants",
+          "mean_ms": 289.7,
+          "p50_ms": 284.4,
+          "p95_ms": 376.8,
+          "throughput": 134.0
+        }
+      ],
+      "run": {
+        "base_url": "",
+        "claimants": 40,
+        "solo_claims": 50,
+        "started_at": "2026-09-27T22:41:30Z",
+        "tasks": 600
+      },
+      "tasks_handed_to_two_claimants": 0
+    },
+    {
+      "environment": {
+        "commit": "e394ea6a4b910a5eba438f6c017f949cb386fe01",
+        "cpu_count": 10,
+        "load_average_end": [
+          10.91,
+          11.57,
+          12.37
+        ],
+        "load_average_start": [
+          10.91,
+          11.57,
+          12.37
+        ],
+        "machine": "Darwin 25.0.0 arm64",
+        "panelist_version": "5.1.0",
+        "postgres": "16.14",
+        "python": "3.12.13"
+      },
+      "rows": [
+        {
+          "claimants": 1,
+          "claims": 50,
+          "distinct": 50,
+          "label": "single claimant",
+          "mean_ms": 13.5,
+          "p50_ms": 13.0,
+          "p95_ms": 15.8,
+          "throughput": 73.3
+        },
+        {
+          "claimants": 40,
+          "claims": 520,
+          "distinct": 520,
+          "label": "all claimants",
+          "mean_ms": 114.6,
+          "p50_ms": 97.3,
+          "p95_ms": 239.9,
+          "throughput": 261.2
+        }
+      ],
+      "run": {
+        "base_url": "http://127.0.0.1:8767",
+        "claimants": 40,
+        "solo_claims": 50,
+        "started_at": "2026-09-27T22:41:39Z",
+        "tasks": 600
+      },
+      "tasks_handed_to_two_claimants": 0
+    },
+    {
+      "environment": {
+        "commit": "e394ea6a4b910a5eba438f6c017f949cb386fe01",
+        "cpu_count": 10,
+        "load_average_end": [
+          10.74,
+          11.51,
+          12.33
+        ],
+        "load_average_start": [
+          10.28,
+          11.43,
+          12.31
+        ],
+        "machine": "Darwin 25.0.0 arm64",
+        "panelist_version": "5.1.0",
+        "postgres": "16.14",
+        "python": "3.12.13"
+      },
+      "rows": [
+        {
+          "claimants": 1,
+          "claims": 50,
+          "distinct": 50,
+          "label": "single claimant",
+          "mean_ms": 12.7,
+          "p50_ms": 11.8,
+          "p95_ms": 14.3,
+          "throughput": 77.9
+        },
+        {
+          "claimants": 40,
+          "claims": 520,
+          "distinct": 520,
+          "label": "all claimants",
+          "mean_ms": 353.4,
+          "p50_ms": 323.2,
+          "p95_ms": 634.8,
+          "throughput": 110.2
+        }
+      ],
+      "run": {
+        "base_url": "",
+        "claimants": 40,
+        "solo_claims": 50,
+        "started_at": "2026-09-27T22:41:45Z",
+        "tasks": 600
+      },
+      "tasks_handed_to_two_claimants": 0
+    },
+    {
+      "environment": {
+        "commit": "e394ea6a4b910a5eba438f6c017f949cb386fe01",
+        "cpu_count": 10,
+        "load_average_end": [
+          9.88,
+          11.31,
+          12.26
+        ],
+        "load_average_start": [
+          9.88,
+          11.31,
+          12.26
+        ],
+        "machine": "Darwin 25.0.0 arm64",
+        "panelist_version": "5.1.0",
+        "postgres": "16.14",
+        "python": "3.12.13"
+      },
+      "rows": [
+        {
+          "claimants": 1,
+          "claims": 50,
+          "distinct": 50,
+          "label": "single claimant",
+          "mean_ms": 14.0,
+          "p50_ms": 12.3,
+          "p95_ms": 25.3,
+          "throughput": 70.8
+        },
+        {
+          "claimants": 40,
+          "claims": 520,
+          "distinct": 520,
+          "label": "all claimants",
+          "mean_ms": 106.2,
+          "p50_ms": 94.2,
+          "p95_ms": 222.4,
+          "throughput": 277.8
+        }
+      ],
+      "run": {
+        "base_url": "http://127.0.0.1:8767",
+        "claimants": 40,
+        "solo_claims": 50,
+        "started_at": "2026-09-27T22:41:54Z",
+        "tasks": 600
+      },
+      "tasks_handed_to_two_claimants": 0
+    },
+    {
+      "environment": {
+        "commit": "e394ea6a4b910a5eba438f6c017f949cb386fe01",
+        "cpu_count": 10,
+        "load_average_end": [
+          9.8,
+          11.25,
+          12.23
+        ],
+        "load_average_start": [
+          10.05,
+          11.33,
+          12.26
+        ],
+        "machine": "Darwin 25.0.0 arm64",
+        "panelist_version": "5.1.0",
+        "postgres": "16.14",
+        "python": "3.12.13"
+      },
+      "rows": [
+        {
+          "claimants": 1,
+          "claims": 50,
+          "distinct": 50,
+          "label": "single claimant",
+          "mean_ms": 13.0,
+          "p50_ms": 12.1,
+          "p95_ms": 16.0,
+          "throughput": 76.5
+        },
+        {
+          "claimants": 40,
+          "claims": 520,
+          "distinct": 520,
+          "label": "all claimants",
+          "mean_ms": 261.2,
+          "p50_ms": 260.5,
+          "p95_ms": 315.6,
+          "throughput": 148.4
+        }
+      ],
+      "run": {
+        "base_url": "",
+        "claimants": 40,
+        "solo_claims": 50,
+        "started_at": "2026-09-27T22:42:00Z",
+        "tasks": 600
+      },
+      "tasks_handed_to_two_claimants": 0
+    },
+    {
+      "environment": {
+        "commit": "e394ea6a4b910a5eba438f6c017f949cb386fe01",
+        "cpu_count": 10,
+        "load_average_end": [
+          9.26,
+          11.12,
+          12.17
+        ],
+        "load_average_start": [
+          9.26,
+          11.12,
+          12.17
+        ],
+        "machine": "Darwin 25.0.0 arm64",
+        "panelist_version": "5.1.0",
+        "postgres": "16.14",
+        "python": "3.12.13"
+      },
+      "rows": [
+        {
+          "claimants": 1,
+          "claims": 50,
+          "distinct": 50,
+          "label": "single claimant",
+          "mean_ms": 14.1,
+          "p50_ms": 13.4,
+          "p95_ms": 15.1,
+          "throughput": 70.3
+        },
+        {
+          "claimants": 40,
+          "claims": 520,
+          "distinct": 520,
+          "label": "all claimants",
+          "mean_ms": 106.1,
+          "p50_ms": 105.3,
+          "p95_ms": 177.6,
+          "throughput": 303.4
+        }
+      ],
+      "run": {
+        "base_url": "http://127.0.0.1:8767",
+        "claimants": 40,
+        "solo_claims": 50,
+        "started_at": "2026-09-27T22:42:08Z",
+        "tasks": 600
+      },
+      "tasks_handed_to_two_claimants": 0
+    }
+  ]
+}

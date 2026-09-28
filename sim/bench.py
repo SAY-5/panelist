@@ -12,29 +12,49 @@ runs against an empty database or one that already holds the demo's rows.
         uv run python -m sim.bench --claimants 40 --tasks 600
 
 With `--base-url` it measures a server that is already running instead of starting one in
-this process, which is how the multi-worker row in the README was produced:
+this process. Give that server the settings in `SERVER_SETTINGS`, which the in-process server
+runs under, or the two rows measure different configurations; by hand that is
 
-    uv run uvicorn panelist.main:app --port 8767 --workers 4
+    ATTENTION_FRACTION=0 LOG_LEVEL=WARNING \
+        uv run uvicorn panelist.main:app --port 8767 --workers 4 --log-level warning
     ... uv run python -m sim.bench --base-url http://127.0.0.1:8767
+
+and the server can stay up across `alembic downgrade base` and `alembic upgrade head` between
+runs. `--json PATH` writes the run as well as printing it: both rows, the claimant and task
+counts, the commit, the machine, the CPU count, the PostgreSQL and Python versions, and the load
+average at the start and the end of the run. A PATH that already holds runs is appended to.
+
+The README's benchmark table quotes whole sessions, each one artifact under `docs/`, and
+`sim/bench_session.py` is how a session is run: alternating rounds on the in-process server and
+on a four-worker server it starts for each round, with the schema reset before every run.
 """
 
 import argparse
+import json
 import os
+import platform
 import secrets
 import statistics
 import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import httpx
 import uvicorn
 from sqlalchemy import text
 
-os.environ.setdefault("ATTENTION_FRACTION", "0")  # no golden serves in the measurement
-os.environ.setdefault("LEASE_SECONDS", "900")
-os.environ.setdefault("DELIVERY_S3_BUCKET", "")
-os.environ.setdefault("LOG_LEVEL", "WARNING")
+# The settings a measured server runs under. The in-process server reads them from this process's
+# environment, and `sim.bench_session` starts its four-worker server with the same ones.
+SERVER_SETTINGS = {
+    "ATTENTION_FRACTION": "0",  # no golden serves in the measurement
+    "LEASE_SECONDS": "900",
+    "DELIVERY_S3_BUCKET": "",
+    "LOG_LEVEL": "WARNING",
+}
+for _name, _value in SERVER_SETTINGS.items():
+    os.environ.setdefault(_name, _value)
 
 from panelist import __version__  # noqa: E402
 from panelist.cli import bootstrap  # noqa: E402
@@ -138,32 +158,60 @@ def phase(label: str, keys: list[str], per_claimant: int, base: str) -> dict:
         "claimants": len(keys),
         "claims": len(claimed),
         "distinct": len(set(claimed)),
-        "p50_ms": percentile(latencies, 0.5) * 1000,
-        "p95_ms": percentile(latencies, 0.95) * 1000,
-        "mean_ms": statistics.fmean(latencies) * 1000 if latencies else 0.0,
-        "throughput": len(claimed) / elapsed if elapsed else 0.0,
+        "p50_ms": round(percentile(latencies, 0.5) * 1000, 1),
+        "p95_ms": round(percentile(latencies, 0.95) * 1000, 1),
+        "mean_ms": round(statistics.fmean(latencies) * 1000, 1) if latencies else 0.0,
+        "throughput": round(len(claimed) / elapsed, 1) if elapsed else 0.0,
     }
 
 
-def format_load(load: tuple[float, ...]) -> str:
+def load_average() -> list[float]:
+    """The three load averages, rounded, so a recorded run carries the load it ran under."""
+    return [round(v, 2) for v in os.getloadavg()]
+
+
+def format_load(load: list[float]) -> str:
     return ", ".join(f"{v:.2f}" for v in load)
 
 
-def header(note: str, load_start: tuple[float, ...]) -> list[str]:
+def environment(load_start: list[float], load_end: list[float]) -> dict:
     try:
         sha = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         sha = "unknown"
     with session_factory()() as db:
         pg = str(db.execute(text("SHOW server_version")).scalar())
+    return {
+        "panelist_version": __version__,
+        "commit": sha,
+        "python": platform.python_version(),
+        "machine": f"{platform.system()} {platform.release()} {platform.machine()}",
+        "cpu_count": os.cpu_count(),
+        "postgres": pg,
+        "load_average_start": load_start,
+        "load_average_end": load_end,
+    }
+
+
+def header(env: dict, note: str) -> list[str]:
     return [
-        f"panelist {__version__} at {sha}, PostgreSQL {pg}, {os.cpu_count()} CPUs,"
-        f" load average {format_load(load_start)} at the start,"
-        f" {format_load(os.getloadavg())} at the end",
+        f"panelist {env['panelist_version']} at {env['commit'][:7]}, {env['machine']},"
+        f" {env['cpu_count']} CPUs, PostgreSQL {env['postgres']},"
+        f" Python {env['python']}, load average {format_load(env['load_average_start'])}"
+        f" at the start, {format_load(env['load_average_end'])} at the end",
         note,
     ]
+
+
+def write_artifact(path: str, record: dict) -> None:
+    """Append the run to PATH, so several rounds of one configuration land in one artifact."""
+    target = Path(path)
+    document = json.loads(target.read_text()) if target.exists() else {"runs": []}
+    document["runs"].append(record)
+    target.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n")
+    print(f"wrote {path}, holding {len(document['runs'])} runs")
 
 
 def main(argv=None) -> int:
@@ -174,9 +222,11 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--base-url", default="", help="measure a server already running at this URL"
     )
+    parser.add_argument("--json", metavar="PATH", help="also write the run, appending to PATH")
     args = parser.parse_args(argv)
 
-    load_start = os.getloadavg()
+    started_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    load_start = load_average()
     key = bootstrap(f"pk_bench_{secrets.token_urlsafe(16)}")
     base = args.base_url or BASE
     server = None
@@ -197,7 +247,8 @@ def main(argv=None) -> int:
         if server is not None:
             server.should_exit = True
 
-    for line in header(note, load_start):
+    env = environment(load_start, load_average())
+    for line in header(env, note):
         print(line)
     columns = ("phase", "clients", "claims", "unique", "p50 ms", "p95 ms", "claims/s")
     print(
@@ -211,6 +262,22 @@ def main(argv=None) -> int:
         )
     doubled = sum(r["claims"] - r["distinct"] for r in rows)
     print(f"tasks handed to two claimants: {doubled}")
+    if args.json:
+        write_artifact(
+            args.json,
+            {
+                "environment": env,
+                "run": {
+                    "base_url": args.base_url,
+                    "claimants": args.claimants,
+                    "solo_claims": args.solo_claims,
+                    "started_at": started_at,
+                    "tasks": args.tasks,
+                },
+                "rows": rows,
+                "tasks_handed_to_two_claimants": doubled,
+            },
+        )
     return 0
 
 
