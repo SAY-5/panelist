@@ -243,7 +243,7 @@ Experts only ever see `TaskExpertView`: prompt, responses, rubric, deadline and 
 
 ## Data model
 
-- `experts`: name, `tags[]` (GIN indexed), tier, optional per-task rate override, status, `served_count`, `calibration_score` and `calibration_samples`.
+- `experts`: name, `tags[]` (GIN indexed), tier, optional per-task rate override, status, `served_count`, `calibration_score` and `calibration_samples`. The table also keeps `hourly_rate_cents`, which nothing reads or writes since 6.0.0 and which stays for 5.0.0 tasks serving during an upgrade until a 7.0.0 migration drops it.
 - `tier_changes`: one row per automatic promotion or demotion with the score and sample count that triggered it.
 - `rubrics` and `rubric_criteria`: immutable versions per name; a superseded version records `superseded_at` and `superseded_by_id`. Each criterion has key, weight, scale and position.
 - `rate_cards`: `(tier, task_type) -> rate_cents`, with a `default` task type fallback.
@@ -295,13 +295,13 @@ Honest note on AWS: this repository was built and verified without an AWS accoun
 
 ## Testing
 
-`make test` runs 73 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, exact `/ops/overview` counts on a seeded fixture, the scheduler tick and the audit export, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, and role scopes. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
+`make test` runs 74 tests: tag and priority routing, rubric version publishing and pinning, calibration promotion, demotion and hysteresis, consensus and adjudication, exact `/ops/overview` counts on a seeded fixture, the scheduler tick and the audit export, tier gates, concurrent claims from a thread pool at the service and HTTP layers, lease expiry and reclaim, attention-check pausing and payout withholding, rate lookup by tier and task type, period close totals against the ledger, CSV statements, rubric aggregates and agreement, reproducible export checksums, role scopes, and an upgrade from the 5.0.0 schema that keeps every column 5.0.0 reads. Tests run against PostgreSQL via Testcontainers, or a provided `TEST_DATABASE_URL` as in CI.
 
 ## Releases
 
 | Version | Highlights |
 | --- | --- |
-| 5.1.0 | Correctness and honesty pass: one error handler, consensus redelivery and requeue of rejected tasks, `POST /deliveries` with a verify endpoint and a read scope, keyed attention scheduling, key revocation, documentation tables pinned by a test, and a browser port whose figures say what produced them |
+| 6.0.0 | Breaking: `POST /deliveries` replaces `GET /deliveries/export` and experts lose `hourly_rate_cents`; one error handler, consensus redelivery and requeue of rejected tasks, a verify endpoint and a read scope, keyed attention scheduling, key revocation, no statements prepared on the server so a running server survives a schema reset, recorded benchmark sessions, documentation pinned by tests, and a browser port whose figures say what produced them |
 | 5.0.0 | Operations: `/ops/overview`, the `panelist tick` scheduler pass with lease reclaim and reminders, a CSV audit export, and gauges for the adjudication backlog, paused experts and tier distribution |
 | 4.0.0 | Consensus over k graders: agreement inside the tolerance picks the delivered grade, disagreement opens an adjudication queue for a senior reviewer, outvoted graders are paid by a configurable rule |
 | 3.0.0 | Expert calibration: rolling agreement with reviewers and golden answers, tier promotion and demotion with a hysteresis band, routing follows the live tier |
